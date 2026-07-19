@@ -1,0 +1,23 @@
+{
+  "name": "pi-notify",
+  "version": "0.1.0",
+  "description": "Native terminal notifications for pi when the agent is idle and waiting for input.",
+  "keywords": ["pi-package", "pi", "extension", "notify", "terminal"],
+  "license": "MIT",
+  "author": {
+    "name": "Ole Mussmann"
+  },
+  "contributors": [
+    {
+      "name": "Mario Zechner",
+      "note": "Original Notify Example for pi (MIT, earendil-works/pi)"
+    }
+  ],
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

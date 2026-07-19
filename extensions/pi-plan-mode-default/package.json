@@ -1,0 +1,33 @@
+{
+  "name": "pi-plan-mode-default",
+  "version": "0.3.0",
+  "description": "Plan mode by default for interactive pi sessions, with structured plan management via the plan_item tool.",
+  "keywords": ["pi-package", "pi", "extension", "plan-mode"],
+  "license": "MIT",
+  "author": {
+    "name": "Ole Mussmann"
+  },
+  "contributors": [
+    {
+      "name": "Mario Zechner",
+      "note": "Original Plan Mode Extension for pi (MIT, earendil-works/pi)"
+    }
+  ],
+  "type": "module",
+  "scripts": {
+    "clean": "echo 'nothing to clean'",
+    "build": "echo 'nothing to build'",
+    "check": "echo 'nothing to check'"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}
