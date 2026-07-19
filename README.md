@@ -28,7 +28,7 @@ pi install git:github.com/OleMussmann/pi-additions -l --approve
 Load a single extension without installing:
 
 ```bash
-pi -e ./extensions/pi-frame/frame.ts
+pi -e ./extensions/pi-frame/index.ts
 ```
 
 Each sub-extension is also installable **on its own** (it carries its own `package.json`
@@ -43,7 +43,7 @@ pi install ./extensions/pi-notify
 
 # Or load a single extension for one run (temp dir)
 pi -e ./extensions/pi-subagents/index.ts
-pi -e ./extensions/pi-frame/frame.ts
+pi -e ./extensions/pi-frame/index.ts
 pi -e ./extensions/pi-plan-mode-default/index.ts
 pi -e ./extensions/pi-notify/index.ts
 ```
@@ -79,7 +79,7 @@ Disable `pi-subagents` only:
     {
       "source": "git:github.com/OleMussmann/pi-additions",
       "extensions": [
-        "./extensions/pi-frame/frame.ts",
+        "./extensions/pi-frame/index.ts",
         "!./extensions/pi-subagents/index.ts",
         "./extensions/pi-plan-mode-default/index.ts",
         "./extensions/pi-notify/index.ts"
@@ -137,7 +137,7 @@ pi-additions/
 ├── package.json            # pi manifest: lists the 4 extensions
 ├── README.md
 └── extensions/
-    ├── pi-frame/           # frame.ts + helpers, render, git, types
+    ├── pi-frame/           # index.ts + helpers, render, git, types
     ├── pi-subagents/       # index.ts + agents/, models, config, guardrail
     ├── pi-plan-mode-default/  # index.ts + utils
     └── pi-notify/          # index.ts

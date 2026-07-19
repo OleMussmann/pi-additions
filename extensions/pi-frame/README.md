@@ -6,7 +6,7 @@ Decorates the Pi editor input area with a styled box or bar, plus live stats: mo
 
 ```bash
 # From the pi-additions repo root
-pi -e ./extensions/pi-frame/frame.ts
+pi -e ./extensions/pi-frame/index.ts
 
 # Or install pi-frame on its own
 pi install ./extensions/pi-frame
@@ -44,7 +44,7 @@ pi install ./extensions/pi-frame ./extensions/pi-plan-mode-default
 Or load both for a single run:
 
 ```bash
-pi -e ./extensions/pi-frame/frame.ts -e ./extensions/pi-plan-mode-default/index.ts
+pi -e ./extensions/pi-frame/index.ts -e ./extensions/pi-plan-mode-default/index.ts
 ```
 
 Or place both in `~/.pi/agent/extensions/` for auto-discovery.
@@ -84,7 +84,7 @@ Two visual styles. Switch with `/frame`:
 Default is `box`. Optionally override with CLI flag for one session:
 
 ```bash
-pi -e ./frame.ts --frame-mode bar
+pi -e ./index.ts --frame-mode bar
 ```
 
 ## Stats
@@ -169,7 +169,7 @@ Modular structure:
 
 | Module | Purpose |
 |---|---|
-| `frame.ts` | Entry point, command registration, event handlers |
+| `index.ts` | Entry point, command registration, event handlers |
 | `types.ts` | Types, constants, config |
 | `git.ts` | Git status parsing and display |
 | `helpers.ts` | String formatting, ANSI utilities |
@@ -182,7 +182,7 @@ Marked with `__piFrame` to prevent double-wrapping across `/reload`.
 ## Load Path
 
 ```typescript
-// pi -e ./frame.ts
+// pi -e ./index.ts
 export default function (pi: ExtensionAPI) { ... }
 ```
 

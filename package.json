@@ -26,7 +26,7 @@
   },
   "pi": {
     "extensions": [
-      "./extensions/pi-frame/frame.ts",
+      "./extensions/pi-frame/index.ts",
       "./extensions/pi-subagents/index.ts",
       "./extensions/pi-plan-mode-default/index.ts",
       "./extensions/pi-notify/index.ts"

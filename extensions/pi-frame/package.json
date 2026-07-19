@@ -9,7 +9,7 @@
   },
   "type": "module",
   "pi": {
-    "extensions": ["./frame.ts"]
+    "extensions": ["./index.ts"]
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

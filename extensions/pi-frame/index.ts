@@ -18,7 +18,7 @@
  * from the active theme.
  *
  * Load:
- *   pi -e ./frame.ts
+ *   pi -e ./index.ts
  */
 
 import { existsSync, readFileSync } from "node:fs";
