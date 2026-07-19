@@ -1,11 +1,12 @@
 # pi-additions
 
-A single installable [Pi](https://github.com/earendil-works/pi) package that bundles four
+A single installable [Pi](https://github.com/earendil-works/pi) package that bundles five
 coding-agent extensions:
 
 | Extension | What it does |
 |-----------|--------------|
 | [`pi-frame`](./extensions/pi-frame) | Decorates the editor input area with a styled box/bar + live stats (model, mode, context, cost, git, …) |
+| [`pi-ketch`](./extensions/pi-ketch) | Native `web` tool wrapping the `ketch` CLI for external research — web search, OSS code search, library docs, scrape, crawl (with a bundled `ketch` skill) |
 | [`pi-subagents`](./extensions/pi-subagents) | Read-only, model-aware subagent delegation (`/delegate`, `subagent` tool) with automatic free-model tier selection and guardrails |
 | [`pi-plan-mode-default`](./extensions/pi-plan-mode-default) | Plan mode by default for interactive sessions; structured plan management via the `plan_item` tool (`/plan`, `/exec`, `Ctrl+Alt+P`) |
 | [`pi-notify`](./extensions/pi-notify) | Native terminal notification when Pi is idle and waiting for input (OSC 777, OSC 99/Kitty, Windows toast) |
@@ -36,13 +37,15 @@ with a `pi.extensions` manifest). From the repo root:
 
 ```bash
 # Install just one extension as a standalone package
-pi install ./extensions/pi-subagents
 pi install ./extensions/pi-frame
+pi install ./extensions/pi-ketch
+pi install ./extensions/pi-subagents
 pi install ./extensions/pi-plan-mode-default
 pi install ./extensions/pi-notify
 
 # Or load a single extension for one run (temp dir)
 pi -e ./extensions/pi-subagents/index.ts
+pi -e ./extensions/pi-ketch/index.ts
 pi -e ./extensions/pi-frame/index.ts
 pi -e ./extensions/pi-plan-mode-default/index.ts
 pi -e ./extensions/pi-notify/index.ts
@@ -106,6 +109,17 @@ toggle stats with `/frame show <stat>` / `/frame hide <stat>`.
 > **Note:** The `mode` stat needs a plan-mode extension (e.g. `pi-plan-mode-default` here) to
 > toggle `plan`/`exec`. Without one it always shows `exec`.
 
+### pi-ketch
+Native Pi tool (`web`) wrapping the [`ketch`](https://github.com/1broseidon/ketch) CLI for
+external research: web search, OSS code search, library docs, scrape, and crawl. One tool with
+a `mode` enum; `ketch`'s exit codes drive error handling, and a bundled `ketch` skill documents
+when to use each mode, token-control flags, and how to combine it with the `subagent-web-search`
+subagent for synthesized answers. Read-only — safe in plan mode. Requires `ketch` on PATH
+(`brew install 1broseidon/tap/ketch`).
+
+> **Note:** `pi-ketch` is raw-only. For summarized research, delegate to `subagent-web-search`
+> (from `pi-subagents`). For full repo clones or YouTube transcripts, use `pi-web-access`.
+
 ### pi-subagents
 Spawns read-only research subagents that auto-discover zero-cost models and pick one by
 capability tier (`fast` / `balanced` / `powerful`). Bash is allow/block-listed; sensitive
@@ -138,6 +152,7 @@ pi-additions/
 ├── README.md
 └── extensions/
     ├── pi-frame/           # index.ts + helpers, render, git, types
+    ├── pi-ketch/            # index.ts + skills/ketch (bundled skill), PLAN.md, IMPL.md
     ├── pi-subagents/       # index.ts + agents/, models, config, guardrail
     ├── pi-plan-mode-default/  # index.ts + utils
     └── pi-notify/          # index.ts
