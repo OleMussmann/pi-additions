@@ -35,6 +35,26 @@ const DEFAULT_LIMIT = 5;
 const DEFAULT_MAX_CHARS = 4000;
 const EXEC_TIMEOUT_MS = 60_000;
 
+// ── Doctor cache: lazily populated on first web tool call. ────────────────
+type DoctorResult = { surface: string; backend: string; status: string };
+let doctorCache: DoctorResult[] | null = null;
+let doctorChecked = false;
+
+async function ensureDoctorCache(): Promise<void> {
+	if (doctorChecked) return;
+	doctorChecked = true;
+	try {
+		const { stdout, code } = await runKetch(["doctor", "--json"], new AbortController().signal);
+		if (code !== 0) {
+			doctorCache = JSON.parse(stdout) as DoctorResult[];
+		} else {
+			doctorCache = []; // all healthy
+		}
+	} catch {
+		doctorCache = []; // don't retry on failure
+	}
+}
+
 const WebParams = Type.Object({
 	mode: StringEnum(["search", "code", "docs", "scrape", "crawl"] as const, {
 		description: "ketch research surface to use.",
@@ -245,25 +265,6 @@ function helpfulError(code: number | null, stderr: string): string {
 }
 
 export default function (pi: ExtensionAPI): void {
-	// ── Health check on session start (read-only, non-blocking) ────────────
-	pi.on("session_start", async (_event, ctx: ExtensionContext) => {
-		try {
-			const { stdout, stderr, code } = await runKetch(["doctor"], new AbortController().signal);
-			if (code !== 0) {
-				ctx.ui.notify(
-					`ketch health check reports an issue (exit ${code}). Some backends may be misconfigured. ${stderr.trim().split("\n")[0] ?? ""}`,
-					"warning",
-				);
-			}
-			void stdout;
-		} catch (e) {
-			ctx.ui.notify(
-				e instanceof Error ? e.message : "ketch doctor failed.",
-				"warning",
-			);
-		}
-	});
-
 	// ── Runtime subagent detection → short system note ─────────────────────
 	pi.on("before_agent_start", async () => {
 		let hasSubagent = false;
@@ -310,6 +311,22 @@ export default function (pi: ExtensionAPI): void {
 				return { content: [{ type: "text", text: built.error }], isError: true };
 			}
 
+			// ── Lazy doctor cache + surface health warning ──────────────────────
+			await ensureDoctorCache();
+			const surfaceMap: Record<string, string> = { search: "search", code: "code", docs: "docs" };
+			const surface = surfaceMap[params.mode];
+			let surfaceWarning = "";
+			if (surface && doctorCache && doctorCache.length > 0) {
+				const hasOk = doctorCache.some((r) => r.surface === surface && r.status === "ok");
+				if (!hasOk) {
+					const checked = doctorCache
+						.filter((r) => r.surface === surface)
+						.map((r) => r.backend)
+						.join(", ");
+					surfaceWarning = `Warning: no healthy backends for ${surface} (checked: ${checked}). The call may fail.`;
+				}
+			}
+
 			let res;
 			try {
 				res = await runKetch(built, signal);
@@ -321,14 +338,16 @@ export default function (pi: ExtensionAPI): void {
 			}
 
 			if (res.code !== 0) {
+				const errText = helpfulError(res.code, res.stderr);
 				return {
-					content: [{ type: "text", text: helpfulError(res.code, res.stderr) }],
+					content: [{ type: "text", text: surfaceWarning ? `${surfaceWarning}\n\n${errText}` : errText }],
 					isError: true,
 				};
 			}
 
+			const summary = summarize(res.stdout, params.maxChars ?? DEFAULT_MAX_CHARS);
 			return {
-				content: [{ type: "text", text: summarize(res.stdout, params.maxChars ?? DEFAULT_MAX_CHARS) }],
+				content: [{ type: "text", text: surfaceWarning ? `${surfaceWarning}\n\n${summary}` : summary }],
 			};
 		},
 	});
