@@ -280,8 +280,13 @@ function getGuardrailPath(): string | null {
 		}
 	}
 	if (extDir) {
-		const guardrail = path.join(extDir, "guardrail.ts");
-		if (fs.existsSync(guardrail)) return guardrail;
+		// Check both source (.ts) and compiled (.js) variants. If pi loads a
+		// compiled build (dropping the .ts), falling back to .js keeps the
+		// guardrail injected; otherwise subagents would run with zero guardrails.
+		for (const ext of ["ts", "js"]) {
+			const guardrail = path.join(extDir, `guardrail.${ext}`);
+			if (fs.existsSync(guardrail)) return guardrail;
+		}
 	}
 	return null;
 }
@@ -362,7 +367,11 @@ async function runSingleAgent(
 
 	const args: string[] = ["--mode", "json", "-p", "--no-session"];
 	if (resolvedModel) args.push("--model", resolvedModel);
-	args.push("--tools", SUBAGENT_TOOLS.join(","));
+	// Respect the agent's declared tools; fall back to the read-only default set.
+	// Hardcoding SUBAGENT_TOOLS here would strip extension tools (e.g. `web`)
+	// that agents like subagent-web-search declare in their frontmatter.
+	const agentTools = agent.tools && agent.tools.length > 0 ? agent.tools : SUBAGENT_TOOLS;
+	args.push("--tools", agentTools.join(","));
 
 	// Inject guardrail extension
 	const guardrailPath = getGuardrailPath();
@@ -523,8 +532,8 @@ const ChainItem = Type.Object({
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 });
 
-const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
-	description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents.',
+const AgentScopeSchema = StringEnum(["user", "project", "both", "bundled"] as const, {
+	description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents. Use "bundled" for only the extension\'s shipped agents (no user/project mix-in).',
 	default: "user",
 });
 
@@ -1179,8 +1188,12 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Default to subagent-scout for general delegation, subagent-web-search for search-like queries
-			const agentName = /search|find out|look up|what is|who is|latest/i.test(task) ? "subagent-web-search" : "subagent-scout";
+			// Route to subagent-web-search only on an explicit web/lookup intent.
+			// Substring matches like "find" (code exploration) must NOT route to web-search,
+			// which cannot grep the codebase. Require a clear web signal.
+			const webIntent = /\b(search the web|web search|look up online|google|bing|fetch (the )?url|scrape|latest (news|release|version)|what is the (current|latest))\b/i;
+			const isUrl = /\bhttps?:\/\//i.test(task);
+			const agentName = webIntent.test(task) || isUrl ? "subagent-web-search" : "subagent-scout";
 
 			// Inject subagent tool call as a follow-up message
 			pi.sendUserMessage(

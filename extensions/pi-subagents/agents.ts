@@ -9,7 +9,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_DIR_NAME, getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-export type AgentScope = "user" | "project" | "both";
+export type AgentScope = "user" | "project" | "both" | "bundled";
 
 export interface AgentConfig {
 	name: string;
@@ -124,6 +124,12 @@ export function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryRe
 	const projectAgents = scope === "user" || !projectAgentsDir ? [] : loadAgentsFromDir(projectAgentsDir, "project");
 
 	const agentMap = new Map<string, AgentConfig>();
+
+	if (scope === "bundled") {
+		// Only the extension's shipped agents (no user/project mix-in).
+		for (const agent of bundledAgents) agentMap.set(agent.name, agent);
+		return { agents: Array.from(agentMap.values()), projectAgentsDir: null };
+	}
 
 	// Merge order: bundled first, then user overrides, then project overrides
 	for (const agent of bundledAgents) agentMap.set(agent.name, agent);

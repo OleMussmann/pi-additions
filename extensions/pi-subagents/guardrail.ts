@@ -211,6 +211,16 @@ function extractPathFromArgs(toolName: string, args: Record<string, unknown>): s
 	}
 }
 
+function extractAllPaths(command: string): string[] {
+	// Match every path-like token: starts with ~ ./ or / and contains no whitespace.
+	const matches = command.matchAll(/\s+([~./][^\s]*)/g);
+	const paths: string[] = [];
+	for (const m of matches) {
+		paths.push(m[1]);
+	}
+	return paths;
+}
+
 export default function (pi: ExtensionAPI) {
 	const cwd = process.cwd();
 	const gitignorePatterns = parseGitignore(cwd);
@@ -229,14 +239,27 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		// Block sensitive path access for read/ls/grep/find/bash
-		const pathArg = extractPathFromArgs(event.toolName, event.input);
-		if (pathArg) {
-			const resolved = path.resolve(cwd, expandHome(pathArg));
-			if (isSensitivePath(resolved, sensitivePatterns)) {
-				return {
-					block: true,
-					reason: `Subagent guardrail: access to sensitive path blocked.\nPath: ${pathArg}`,
-				};
+		if (event.toolName === "bash") {
+			const command = (event.input.command as string) || "";
+			for (const pathArg of extractAllPaths(command)) {
+				const resolved = path.resolve(cwd, expandHome(pathArg));
+				if (isSensitivePath(resolved, sensitivePatterns)) {
+					return {
+						block: true,
+						reason: `Subagent guardrail: access to sensitive path blocked.\nPath: ${pathArg}`,
+					};
+				}
+			}
+		} else {
+			const pathArg = extractPathFromArgs(event.toolName, event.input);
+			if (pathArg) {
+				const resolved = path.resolve(cwd, expandHome(pathArg));
+				if (isSensitivePath(resolved, sensitivePatterns)) {
+					return {
+						block: true,
+						reason: `Subagent guardrail: access to sensitive path blocked.\nPath: ${pathArg}`,
+					};
+				}
 			}
 		}
 	});

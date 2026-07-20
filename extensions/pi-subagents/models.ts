@@ -95,7 +95,7 @@ export async function discoverTierPools(ctx: ExtensionContext, config: SubagentC
 	return { fast, balanced, powerful, all: free };
 }
 
-export function pickModelForTier(pools: TierPools, tier: Tier): { model: Model<Api>; actualTier: Tier } | null {
+export function pickModelForTier(pools: TierPools, tier: Tier): { model: Model<Api>; actualTier: Tier | "auto" } | null {
 	// Pick the best model in the requested tier (highest score = last in sorted-by-score list)
 	const pool = pools[tier];
 	if (pool.length > 0) {
@@ -112,9 +112,10 @@ export function pickModelForTier(pools: TierPools, tier: Tier): { model: Model<A
 		}
 	}
 
-	// If all tiers empty, pick any free model
+	// If all tiers empty, pick any free model. Label it "auto" so the reported
+	// tier is honest (it is NOT the requested tier).
 	if (pools.all.length > 0) {
-		return { model: pools.all[pools.all.length - 1], actualTier: tier };
+		return { model: pools.all[pools.all.length - 1], actualTier: "auto" };
 	}
 
 	return null;
