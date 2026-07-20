@@ -37,7 +37,7 @@ const DESTRUCTIVE_PATTERNS = [
 	/\bshutdown\b/i,
 	/\bsystemctl\s+(start|stop|restart|enable|disable)/i,
 	/\bservice\s+\S+\s+(start|stop|restart)/i,
-	/(?<!ketch\s)(vim?|nano|emacs|code|subl)\b/i,
+	/\b(vim?|nano|emacs|code|subl)\b/i,
 ];
 
 // Safe read-only commands allowed in plan mode
@@ -91,7 +91,6 @@ const SAFE_PATTERNS = [
 	/^\s*rg\b/,
 	/^\s*fd\b/,
 	/^\s*bat\b/,
-	/^\s*ketch\s+(search|code|docs|scrape|extract|doctor)\b/,
 	/^\s*eza\b/,
 ];
 
