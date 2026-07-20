@@ -64,6 +64,9 @@ let gitInfo: GitInfo | null = null;
 // never use a stale ctx after a session replacement / reload.
 let currentCtx: any = null;
 let sessionValid = false;
+// Handle for the deferred UI install (see installUI). Cancelled on shutdown
+// so it never fires against a stale ctx in non-interactive mode.
+let installTimer: ReturnType<typeof setTimeout> | null = null;
 
 // TPS tracking
 let tpsTokenCount = 0;
@@ -427,11 +430,16 @@ export default function (pi: ExtensionAPI) {
 		// Deferred to a timer so this runs after every other extension's
 		// session_start has installed its own editor.
 		const installUI = () => {
-			// In non-interactive modes (print/JSON/RPC) there is no TUI to
-			// decorate. Skip the install to avoid a stale-ctx crash when the
-			// deferred timer fires after the session has settled.
-			if (!ctx.hasUI) return;
+		// Guard against a stale ctx. In print/JSON/RPC (non-interactive) mode the
+		// session/ctx may settle or be replaced before this deferred timer fires.
+		// Reading ctx.hasUI on a stale ctx throws assertActive() and crashes the
+		// process, so we check the module-level liveness flag (a plain boolean,
+		// no ctx access) first. There is no TUI to decorate in non-interactive
+		// mode anyway.
+		if (!sessionValid) return;
 
+		// Defensive: any ctx access below must not be able to crash the process.
+		try {
 			ctx.ui.setFooter((_tui: any, _theme: any, footerData: any) => makeFooter(footerData));
 
 			const prev = ctx.ui.getEditorComponent() as
@@ -482,9 +490,13 @@ export default function (pi: ExtensionAPI) {
 
 			ctx.ui.setEditorComponent(factory);
 			activeTui?.requestRender();
+		} catch {
+			// Stale ctx or any UI failure in non-interactive mode: skip decoration
+			// rather than crashing the process.
+		}
 		};
 
-		setTimeout(installUI, 0);
+		installTimer = setTimeout(installUI, 0);
 	});
 
 	pi.registerFlag("frame-mode", {
@@ -498,5 +510,10 @@ export default function (pi: ExtensionAPI) {
 		sessionValid = false;
 		currentCtx = null;
 		activeTui = undefined;
+		// Cancel any pending deferred UI install so it can't fire on a stale ctx.
+		if (installTimer !== null) {
+			clearTimeout(installTimer);
+			installTimer = null;
+		}
 	});
 }
