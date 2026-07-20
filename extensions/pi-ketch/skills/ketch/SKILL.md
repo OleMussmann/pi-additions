@@ -1,6 +1,6 @@
 ---
 name: ketch
-description: External research via the ketch CLI — web search, OSS code search, library docs, scrape, and crawl. Use when researching the web, finding real OSS code usage, reading version-aware library docs, or extracting markdown from pages. For synthesized/summarized answers, delegate to the subagent-web-search subagent.
+description: Research outside the codebase — web search, OSS code search, library docs, scrape, crawl. For summarized answers, delegate to subagent-web-search.
 ---
 
 # ketch — External Research (pi-ketch)
@@ -18,7 +18,6 @@ use each mode and which flags matter.
 | Version-aware library docs | `docs` | set `library: /org/repo` to skip resolution; `tokens` for budget |
 | Clean markdown from a URL / PDF | `scrape` | single or multiple URLs; auto-detects PDFs |
 | Walk a docs site / sitemap | `crawl` | set `depth` (default 3), `allow`/`deny` filters; **use sparingly** (many requests) |
-| Piped HTML → markdown | (manual) | `curl -L <url> | ketch extract` — not a tool; use via bash if needed |
 
 ## Token control (protect context)
 
@@ -27,14 +26,6 @@ Always tune per call:
 - `maxChars` (default 4000) — truncate the returned summary.
 
 Lower both when context is tight; raise for broader coverage.
-
-## Useful flags
-
-- `search`: `--multi` (fuse all usable backends), `--backend` (brave/ddg/searxng/exa/firecrawl/keenable), `--scrape` (full content).
-- `code`: `--lang`, `--regex`, `--backend` (grepapp/sourcegraph/github).
-- `docs`: `--library`, `--tokens`, `--resolve` (resolve a library name instead of searching).
-- `scrape`: `--max-chars`, `--select` (CSS selector), `--no-cache`.
-- `crawl`: `--depth`, `--concurrency`, `--allow`, `--deny`, `--sitemap`, `--background`.
 
 ## Control flow (exit codes)
 
@@ -45,20 +36,16 @@ ketch uses documented exit codes — surface these to the user when a call fails
 
 `ketch doctor` reports backend health; `ketch config` shows active backends.
 
-## Synthesized answers (subagent coordination)
+## Synthesized answers
 
-`pi-ketch` is **raw-only** — it returns source material, not summaries. For a
-synthesized/summarized answer, delegate to the **`subagent-web-search`** subagent
-(part of `pi-subagents`), which uses ketch under the hood and returns a concise
-summary. This keeps `pi-ketch` and `pi-subagents` independent: if the subagent is
-not installed, just use `web` directly and summarize yourself.
+`pi-ketch` is **raw-only**. Delegate to `subagent-web-search` for summaries.
 
 ## Edge cases: use pi-web-access instead
 
-`ketch` cannot do everything. For these, use the **pi-web-access** tools:
-- **Cloning a repository** for deep local exploration (`ketch crawl` only walks
-  rendered website/sitemap HTML — it does NOT give you a git tree or file contents).
-- **YouTube video transcripts** (`ketch` has no YouTube support at all).
+`ketch` cannot:
+- **Clone a repository** for deep local exploration (`ketch crawl` only walks
+  rendered website/sitemap HTML — not a git tree or file contents).
+- **Fetch YouTube video transcripts** (`ketch` has no YouTube support).
 
 For public OSS *discovery* ("where is X used?"), prefer `web` mode `code` — it is
 often better than cloning.
