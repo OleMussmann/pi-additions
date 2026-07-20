@@ -87,27 +87,34 @@ export async function refreshGit(
 	cwd: string,
 ): Promise<GitInfo | null> {
 	if (!cwd) return null;
+	try {
+		const status = await pi
+			.exec("git", ["status", "--porcelain=2", "--branch"], { cwd, timeout: 5000 })
+			.catch(() => undefined);
+		if (!status || status.code !== 0) return null;
 
-	const status = await pi
-		.exec("git", ["status", "--porcelain=2", "--branch"], { cwd, timeout: 5000 })
-		.catch(() => undefined);
-	if (!status || status.code !== 0) return null;
+		const info = parseGitStatus(status.stdout);
 
-	const info = parseGitStatus(status.stdout);
+		const stash = await pi
+			.exec("git", ["stash", "list"], { cwd, timeout: 5000 })
+			.catch(() => undefined);
+		if (stash?.code === 0 && stash.stdout) {
+			info.stashed = stash.stdout.split("\n").filter(Boolean).length;
+		}
 
-	const stash = await pi
-		.exec("git", ["stash", "list"], { cwd, timeout: 5000 })
-		.catch(() => undefined);
-	if (stash?.code === 0 && stash.stdout) {
-		info.stashed = stash.stdout.split("\n").filter(Boolean).length;
+		const gd = await pi
+			.exec("git", ["rev-parse", "--absolute-git-dir"], { cwd, timeout: 5000 })
+			.catch(() => undefined);
+		if (gd?.code === 0 && gd.stdout) {
+			info.state = detectGitState(gd.stdout.trim());
+		}
+
+		return info;
+	} catch (e: any) {
+		// A session replacement (reload/newSession/fork/switchSession) makes the
+		// captured pi stale; pi.exec throws instead of silently targeting the old
+		// session. Swallow that specific error so git refresh degrades gracefully.
+		if (typeof e?.message === "string" && e.message.includes("stale")) return null;
+		throw e;
 	}
-
-	const gd = await pi
-		.exec("git", ["rev-parse", "--absolute-git-dir"], { cwd, timeout: 5000 })
-		.catch(() => undefined);
-	if (gd?.code === 0 && gd.stdout) {
-		info.state = detectGitState(gd.stdout.trim());
-	}
-
-	return info;
 }

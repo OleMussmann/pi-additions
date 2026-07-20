@@ -60,6 +60,11 @@ let sessionCost = 0;
 let currentCwd = "";
 let gitInfo: GitInfo | null = null;
 
+// Live session ctx + validity flag. Re-bound on every (re)start so closures
+// never use a stale ctx after a session replacement / reload.
+let currentCtx: any = null;
+let sessionValid = false;
+
 // TPS tracking
 let tpsTokenCount = 0;
 let tpsStartTime = 0;
@@ -231,6 +236,8 @@ export default function (pi: ExtensionAPI) {
 	// ── Events ────────────────────────────────────────────────────────
 
 	pi.on("agent_start", () => {
+		// Re-assert: defensive in case the loader visibility resets per run.
+		currentCtx?.ui.setWorkingVisible(false);
 		startSpinner();
 		startTpsTracking();
 		activeTui?.requestRender();
@@ -239,7 +246,9 @@ export default function (pi: ExtensionAPI) {
 	pi.on("agent_end", () => {
 		stopSpinner();
 		stopTpsTracking();
-		void doRefreshGit();
+		// Only refresh git while the session is still valid; after a session
+		// replacement the captured pi is stale and pi.exec would throw.
+		if (sessionValid) void doRefreshGit();
 		activeTui?.requestRender();
 	});
 
@@ -285,11 +294,18 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_tree", (_event, ctx) => {
 		reconstructState(ctx);
+		currentCtx = ctx;
+		sessionValid = true;
+		// Reload/switch paths fire session_tree without session_start, so the
+		// built-in working loader reverts to default-visible. Re-hide it here.
+		ctx.ui.setWorkingVisible(false);
 		activeTui?.requestRender();
 	});
 
 	pi.on("session_start", (_event, ctx) => {
 		reconstructState(ctx);
+		currentCtx = ctx;
+		sessionValid = true;
 		currentThinking = pi.getThinkingLevel();
 		currentModelLabel = ctx.model ? `${ctx.model.id} (${ctx.model.provider})` : "no model";
 		currentCwd = ctx.cwd;
@@ -466,6 +482,8 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_shutdown", () => {
 		stopSpinner();
 		stopTpsTracking();
+		sessionValid = false;
+		currentCtx = null;
 		activeTui = undefined;
 	});
 }
