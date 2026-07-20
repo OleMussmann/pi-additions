@@ -1,6 +1,6 @@
 {
   "name": "pi-ketch",
-  "version": "0.1.0",
+  
   "description": "Native Pi tool for external research via the ketch CLI — web search, OSS code search, library docs, scrape, and crawl.",
   "keywords": ["pi-package", "pi", "extension", "ketch", "web-search", "research"],
   "license": "MIT",

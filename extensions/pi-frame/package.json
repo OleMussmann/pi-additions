@@ -1,6 +1,6 @@
 {
   "name": "pi-frame",
-  "version": "0.1.0",
+  
   "description": "Decorates the Pi editor input area with a styled box or bar, plus live stats",
   "keywords": ["pi-package", "pi", "extension", "frame", "tui"],
   "license": "MIT",

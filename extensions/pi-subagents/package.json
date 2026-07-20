@@ -1,6 +1,6 @@
 {
   "name": "pi-subagent-plus",
-  "version": "0.1.0",
+  
   "description": "Live model-aware subagent delegation for pi. Read-only research delegates with automatic tier selection.",
   "keywords": ["pi-package", "pi", "extension", "subagent", "delegation"],
   "license": "MIT",
