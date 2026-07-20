@@ -427,6 +427,11 @@ export default function (pi: ExtensionAPI) {
 		// Deferred to a timer so this runs after every other extension's
 		// session_start has installed its own editor.
 		const installUI = () => {
+			// In non-interactive modes (print/JSON/RPC) there is no TUI to
+			// decorate. Skip the install to avoid a stale-ctx crash when the
+			// deferred timer fires after the session has settled.
+			if (!ctx.hasUI) return;
+
 			ctx.ui.setFooter((_tui: any, _theme: any, footerData: any) => makeFooter(footerData));
 
 			const prev = ctx.ui.getEditorComponent() as
