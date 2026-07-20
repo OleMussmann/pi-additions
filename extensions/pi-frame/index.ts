@@ -252,6 +252,14 @@ export default function (pi: ExtensionAPI) {
 		activeTui?.requestRender();
 	});
 
+	// Some extensions (pi-ask, kimchi, etc.) re-enable the built-in working
+	// indicator in their finally blocks after showing custom UI. Re-hide it
+	// after every tool execution so the indicator never leaks into pi-frame's
+	// own braille-spinner prompt.
+	pi.on("tool_execution_end", () => {
+		currentCtx?.ui.setWorkingVisible(false);
+	});
+
 	pi.on("message_start", (event) => {
 		if (event.message.role === "assistant") {
 			// Reset timer for each new message — excludes tool execution gaps
