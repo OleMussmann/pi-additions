@@ -22,7 +22,7 @@
  * - bash is restricted to a safe-command allowlist
  *
  * The agent uses the plan_item tool to manage the plan.
- * Plan progress is shown in a widget during exec mode.
+ * Plan progress is shown in a widget whenever the plan has items (in either mode).
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -118,7 +118,7 @@ export default function planModeDefaultExtension(pi: ExtensionAPI): void {
 			ctx.ui.setStatus("plan-mode", undefined);
 		}
 
-		if (execModeEnabled && planItems.length > 0) {
+		if (planItems.length > 0) {
 			const sel = selectWidgetItems(planItems);
 			const display = sel.display;
 			let hiddenDone = sel.hiddenDone;
