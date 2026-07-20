@@ -119,8 +119,7 @@ const SAFE_PATTERNS = [
 	/^\s*yarn\s+(list|info|why|audit)/i,
 	/^\s*node\s+--version/i,
 	/^\s*python\s+--version/i,
-	/^\s*curl\s/i,
-	/^\s*wget\s+-O\s*-/i,
+	/^\s*rtk\b/,
 	/^\s*jq\b/,
 	/^\s*sed\s+-n/i,
 	/^\s*awk\b/,
@@ -130,10 +129,34 @@ const SAFE_PATTERNS = [
 	/^\s*eza\b/,
 ];
 
+/**
+ * Strip leading environment variable assignments (export VAR=VALUE; or VAR=VALUE;)
+ * before checking against SAFE_PATTERNS. This handles tools like rtk-optimizer
+ * that prepend env setup to commands.
+ *
+ * DESTRUCTIVE_PATTERNS still runs on the full command, so dangerous commands
+ * like `export X=1; rm -rf /` are still blocked.
+ */
+function stripLeadingEnvAssignments(command: string): string {
+	return command.replace(/^\s*(?:(?:export\s+)?\w+=[^;]+;\s*)+/, "");
+}
+
 function isSafeCommand(command: string): boolean {
 	const isDestructive = DESTRUCTIVE_PATTERNS.some((p) => p.test(command));
-	const isSafe = SAFE_PATTERNS.some((p) => p.test(command));
+	const stripped = stripLeadingEnvAssignments(command);
+	const isSafe = SAFE_PATTERNS.some((p) => p.test(stripped));
 	return !isDestructive && isSafe;
+}
+
+/**
+ * Expand common shell variables ($HOME, $USER) in a string.
+ * Used before path extraction to catch paths like $HOME/.ssh/id_rsa.
+ */
+function expandVariables(command: string): string {
+	const home = process.env.HOME || "/home/" + (process.env.USER || "");
+	return command
+		.replace(/\$\{?HOME\}?/g, home)
+		.replace(/\$\{?USER\}?/g, process.env.USER || "");
 }
 
 function expandHome(p: string): string {
@@ -202,8 +225,8 @@ function extractPathFromArgs(toolName: string, args: Record<string, unknown>): s
 			return (args.path as string) || ".";
 		case "bash": {
 			const command = (args.command as string) || "";
-			// Try to extract first path-like argument
-			const match = command.match(/\s+([~./][^\s]*)/);
+			const expanded = expandVariables(command);
+			const match = expanded.match(/\s+([~./][^\s]*)/);
 			return match ? match[1] : null;
 		}
 		default:
@@ -212,8 +235,10 @@ function extractPathFromArgs(toolName: string, args: Record<string, unknown>): s
 }
 
 function extractAllPaths(command: string): string[] {
-	// Match every path-like token: starts with ~ ./ or / and contains no whitespace.
-	const matches = command.matchAll(/\s+([~./][^\s]*)/g);
+	// Expand common variables ($HOME, $USER) before extracting paths.
+	// This catches paths like $HOME/.ssh/id_rsa that the raw regex would miss.
+	const expanded = expandVariables(command);
+	const matches = expanded.matchAll(/\s+([~./][^\s]*)/g);
 	const paths: string[] = [];
 	for (const m of matches) {
 		paths.push(m[1]);
