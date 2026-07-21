@@ -40,13 +40,8 @@ import {
 	type StatKey,
 	type GitInfo,
 } from "./types.js";
-import {
-	formatCwd,
-	formatThinking,
-	formatTokens,
-	visibleWidth,
-	truncateToWidth,
-} from "./helpers.js";
+import { formatCwd, formatThinking, formatTokens } from "./helpers.js";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { refreshGit as fetchGit, gitSegment } from "./git.js";
 import { renderFrame, renderBar } from "./render.js";
 

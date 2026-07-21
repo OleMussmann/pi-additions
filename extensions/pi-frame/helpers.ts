@@ -2,10 +2,7 @@
  * Pi Frame — Utility functions.
  */
 
-import { truncateToWidth as _truncateToWidth, visibleWidth as _visibleWidth } from "@earendil-works/pi-tui";
-
-export const visibleWidth = (s: string): number => _visibleWidth(s);
-export const truncateToWidth = (s: string, w: number, pad?: string): string => _truncateToWidth(s, w, pad);
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 // ─── String Formatting ───────────────────────────────────────────────────
 

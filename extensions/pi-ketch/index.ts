@@ -18,10 +18,6 @@ import { execFile } from "node:child_process";
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-// ─── Verbs we are willing to emit. By construction, anything else (config set,
-// cache clear, mcp, browser install, --force-browser) can never be produced. ───
-const ALLOWED_VERBS = new Set(["search", "code", "docs", "scrape", "crawl", "doctor", "config"]);
-
 // ketch's documented exit codes (see ketch README "Why it works well for agents").
 const EXIT_MEANING: Record<number, string> = {
 	2: "bad input (validation error)",
@@ -122,9 +118,6 @@ function buildArgs(params: {
 	deny?: string;
 }): string[] | { error: string } {
 	const verb = params.mode;
-	if (!ALLOWED_VERBS.has(verb)) {
-		return { error: `ketch verb "${verb}" is not permitted by pi-ketch.` };
-	}
 
 	const args: string[] = [verb, "--json"];
 

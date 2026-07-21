@@ -532,33 +532,27 @@ const ChainItem = Type.Object({
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 });
 
-const AgentScopeSchema = StringEnum(["user", "project", "both", "bundled"] as const, {
-	description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents. Use "bundled" for only the extension\'s shipped agents (no user/project mix-in).',
-	default: "user",
-});
-
-const TierSchema = StringEnum(["fast", "balanced", "powerful"] as const, {
-	description: "Model tier for this task. Default: balanced.",
-	default: "balanced",
-});
-
-const OutputFormatSchema = StringEnum(["summary", "detailed", "full"] as const, {
-	description: "Output format. summary = concise (saves parent context). detailed = thorough report. full = complete output.",
-	default: "detailed",
-});
-
 const SubagentParams = Type.Object({
 	agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })),
 	task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })),
 	tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })),
 	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })),
-	agentScope: Type.Optional(AgentScopeSchema),
+	agentScope: Type.Optional(StringEnum(["user", "project", "both", "bundled"] as const, {
+		description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents. Use "bundled" for only the extension\'s shipped agents (no user/project mix-in).',
+		default: "user",
+	})),
 	confirmProjectAgents: Type.Optional(
 		Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true }),
 	),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })),
-	tier: Type.Optional(TierSchema),
-	outputFormat: Type.Optional(OutputFormatSchema),
+	tier: Type.Optional(StringEnum(["fast", "balanced", "powerful"] as const, {
+		description: "Model tier for this task. Default: balanced.",
+		default: "balanced",
+	})),
+	outputFormat: Type.Optional(StringEnum(["summary", "detailed", "full"] as const, {
+		description: "Output format. summary = concise (saves parent context). detailed = thorough report. full = complete output.",
+		default: "detailed",
+	})),
 });
 
 export default function (pi: ExtensionAPI) {

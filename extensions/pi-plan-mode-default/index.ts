@@ -63,39 +63,31 @@ const MAX_WIDGET_ITEMS = 10;
 /**
  * Select which plan items to show in the (capped) widget.
  *
- * DONE items are truncated first (oldest completed dropped from the front),
- * then TODO items only if they alone exceed the cap (furthest-future TODOs
- * dropped from the tail). Returns the items to display plus hidden counts so
- * the caller can render an "N hidden" indicator.
+ * TODO items are shown first. Remaining slots fill with newest DONE items.
+ * If anything is hidden, reserve 1 slot for a summary line.
  */
 function selectWidgetItems(
 	items: PlanItem[],
 	max: number = MAX_WIDGET_ITEMS,
 ): { display: PlanItem[]; hiddenDone: number; hiddenTodo: number } {
-	const done = items.filter((i) => i.completed);
 	const todo = items.filter((i) => !i.completed);
+	const done = items.filter((i) => i.completed);
 
 	if (items.length <= max) {
 		return { display: [...items], hiddenDone: 0, hiddenTodo: 0 };
 	}
 
-	// Not enough room for any DONE: keep the nearest (head) TODOs, drop the rest.
-	if (todo.length >= max) {
-		return {
-			display: todo.slice(0, max),
-			hiddenTodo: todo.length - max,
-			hiddenDone: done.length,
-		};
-	}
+	// Reserve 1 slot for the summary line (we know items.length > max here).
+	const effectiveMax = max - 1;
 
-	// Room for all TODO plus the most recent DONE (drop oldest from the front).
-	const roomForDone = max - todo.length;
-	const hiddenDone = Math.max(0, done.length - roomForDone);
-	return {
-		display: [...done.slice(hiddenDone), ...todo],
-		hiddenDone,
-		hiddenTodo: 0,
-	};
+	// Cap TODOs first, then fill remaining with newest DONE.
+	const visibleTodo = todo.slice(0, effectiveMax);
+	const roomForDone = effectiveMax - visibleTodo.length;
+	const visibleDone = roomForDone > 0 ? done.slice(-roomForDone) : [];
+	const hiddenTodo = todo.length - visibleTodo.length;
+	const hiddenDone = done.length - visibleDone.length;
+
+	return { display: [...visibleTodo, ...visibleDone], hiddenDone, hiddenTodo };
 }
 
 export default function planModeDefaultExtension(pi: ExtensionAPI): void {
@@ -135,24 +127,13 @@ export default function planModeDefaultExtension(pi: ExtensionAPI): void {
 			});
 
 			// Indicate truncation so the user knows the list is incomplete.
-			// Reserve the summary's own slot by dropping the lowest-priority
-			// visible item: prefer a DONE over a TODO (DONE are truncated first),
-			// so TODOs stay fully visible whenever a DONE is available to drop.
 			if (hiddenDone > 0 || hiddenTodo > 0) {
-				let dropIdx = display.findIndex((d) => d.completed);
-				if (dropIdx === -1) {
-					dropIdx = display.length - 1;
-					hiddenTodo++;
-				} else {
-					hiddenDone++;
-				}
-				display.splice(dropIdx, 1);
-				lines.splice(dropIdx, 1);
-				const summary = ctx.ui.theme.fg(
-					"muted",
-					`… ${hiddenDone} DONE and ${hiddenTodo} TODO hidden`,
-				);
-				lines.unshift(summary);
+				const parts: string[] = [];
+				if (hiddenTodo > 0) parts.push(`${hiddenTodo} TODO`);
+				if (hiddenDone > 0) parts.push(`${hiddenDone} DONE`);
+				const summary = ctx.ui.theme.fg("muted", `… ${parts.join(" + ")} hidden`);
+				const todoCount = display.filter((i) => !i.completed).length;
+				lines.splice(todoCount, 0, summary);
 			}
 
 			ctx.ui.setWidget("plan-items", lines);
