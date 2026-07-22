@@ -62,11 +62,13 @@ Add a **soft optional dependency** on `pi-free-models`'s catalog file:
 ## 3. Catalog file
 
 ### 3.1 Location
-`~/.pi/agent/extensions/pi-free-models.json`
+`~/.pi/agent/extensions/pi-free-models/free-models-catalog.json`
 
-Well-known, fixed path. This is the sole coupling surface between the two
-extensions. No env var indirection needed initially — keep it simple; a
-config override can be added later if needed.
+Well-known, fixed path, inside the extension's own directory package
+(consistent with the user's existing convention of extension data living
+under `~/.pi/agent/extensions/`). This is the sole coupling surface between
+the two extensions. No env var indirection needed initially — keep it
+simple; a config override can be added later if needed.
 
 ### 3.2 Schema (per-entry)
 
@@ -326,6 +328,14 @@ Per-code handling — do not treat "any 4xx" as one bucket:
 | 400 | Usually means *our* request payload was malformed for that model's particular schema, not that the model is unavailable | Log for debugging only. Do **not** let it change classification — auto-trusting 400s risks quietly blacklisting a working model because of a bug in the request-construction code, not the model. |
 
 ### 6.1 Real usage as a (mostly) free refresh signal
+Mechanism (verified): pi's `after_provider_response` extension event fires
+per HTTP response with `event.status` and normalized `event.headers`
+(including `retry-after`); the model comes from `ctx.model`. Two documented
+limits, both acceptable given §8's prober covers the long tail: it fires
+**before stream body consumption** (mid-stream failures are invisible), and
+header availability "depends on provider and transport" — treat as
+best-effort.
+
 Every time the subagent dispatcher makes a real call to a model already in
 the catalog, treat the outcome as a catalog update:
 - Success → `last_checked = now`, `last_real_call = now`, `source: "real"`,
@@ -348,25 +358,72 @@ should exist; neither replaces the other.
 
 ---
 
-## 7. Annotation mechanism (light-touch, per user's chosen direction)
+## 7. Annotation mechanism (runtime `registerProvider`, verified against pi source)
 
 ### 7.1 Approach
-Use pi's `modelOverrides` mechanism to rewrite each free model's displayed
-`name` with a prefix marker, rather than building a custom `/model`-picker
-overlay. This was chosen over a full custom UI (`ctx.ui.custom()` overlay)
-as the starting point because:
-- Smaller surface area, much less to get wrong.
-- Keeps all of pi's built-in `/model` keybindings/behavior intact.
-- `modelOverrides` is documented to apply to both built-in and
-  extension-registered models (relevant fix landed for exactly this: applying
-  overrides to extension-registered provider models), so it covers the
-  dynamically-discovered free models too, not just pi's static built-ins.
+Annotate each free model's displayed `name` with a prefix marker by
+**re-registering the provider at runtime** via `pi.registerProvider()`,
+rather than via `models.json` `modelOverrides` or a custom `/model`-picker
+overlay.
+
+**Why not `modelOverrides` (original plan — corrected):** `modelOverrides`
+is *only* a field of the user's `~/.pi/agent/models.json` config file;
+there is no runtime extension API for it. Using it would mean the extension
+mutates user config — the actually brittle option:
+- `models.json` is strictly schema-validated on load; one bad write makes
+  **all** custom model loading fail (`Invalid models.json schema` → empty).
+- The file reloads every time `/model` opens, so an extension write can
+  clobber a user's concurrent manual edit.
+- It supports JSONC comments; programmatic rewriting strips the user's
+  comments/formatting.
+
+**Why runtime `registerProvider` is safe despite replacing the provider's
+whole model list** (semantics verified in pi's `ModelRegistry`:
+`applyProviderConfig` does `models = models.filter(m => m.provider !== name)`
+then adds the registered ones — full replacement):
+- **Failure modes are session-scoped and self-healing.** Registration
+  mutates only the in-memory registry; nothing touches disk. If the
+  extension is removed or its factory throws, pi's built-in catalog is back
+  next start. `unregisterProvider()` rebuilds from disk. Worst case:
+  annotations missing for one session — never a broken config.
+- **Fail-closed:** only call `registerProvider` after a validated,
+  non-empty discovery fetch. On any error, skip re-registration entirely —
+  the provider stays exactly as pi shipped it.
+- **Roster-preserving:** build the replacement roster from
+  `ctx.modelRegistry.getAll()` for that provider (superset of pi's
+  built-ins AND the user's own `models.json` custom entries — the latter
+  would otherwise be wiped, since registered providers are applied after
+  `models.json` loads), keep every known model's full `Model` metadata
+  untouched except `name`, and merge in newly-discovered free models the
+  built-ins don't know.
+- **It's the documented pattern** (custom-provider.md: "For dynamic model
+  discovery, fetch and register models in the factory") and takes effect
+  immediately at runtime, no `/reload` needed.
+
+**Genuine residual risks (accepted, documented here):**
+1. *Metadata fidelity for newly-discovered models only:* models not in pi's
+   built-in catalog get provider-`/models`-derived metadata (`cost`,
+   `contextWindow`, `reasoning`, `input`) which is shallower than pi's
+   curated entries (no `compat`/`thinkingLevelMap`). Strictly additive
+   (those models are unusable today), but a wrong `reasoning` default can
+   subtly change request behavior — flag in code. Built-in-known models are
+   unaffected.
+2. *Free-model classification is provider-specific* (`:free` suffix,
+   `pricing.prompt == "0"`, …). A classification bug annotates the wrong
+   models — cosmetic only, since `name` is the only field touched for
+   known IDs.
+3. *Pi version drift* in replacement semantics: low (documented API,
+   actively maintained per changelog), but pin a tested pi version in the
+   README.
+
+**Display expectation (verified in models.md):** `name` renders as
+*secondary detail* in `/model`; the primary label stays the model `id`.
+Glyphs are visible but not the leading text. True primary-label control
+requires the deferred custom-overlay UI.
 
 A full custom overlay picker (real ANSI color, custom sort order, filtering
-red out of the list entirely) is a plausible **future iteration**, not part
-of this initial build. Note in code/comments that this was a deliberate
-scope decision, so a future implementer doesn't have to rediscover why the
-simpler path was chosen.
+red out of the list entirely) remains a plausible **future iteration**,
+not part of this initial build.
 
 ### 7.2 Colorblind-safe marking
 Do not rely on color alone (may not even be supported in the `name` field —
@@ -407,19 +464,33 @@ platforms, so drive refresh entirely from pi's own lifecycle. OS schedulers
 may be documented as an optional power-user addition later, not a
 requirement.
 
-### 8.2 TTL-gated lazy refresh on extension load
-On `pi-free-models` startup:
-- **Catalog file absent (first run ever)**: block startup on a full
-  discovery + liveness sweep across all providers, since there's no
-  existing data to show in the meantime. Print a one-time notice to the
-  user that this may take some time (see §9 for the estimate/reasoning),
-  so it doesn't look like a hang.
-- **Catalog present but stale (`last_checked` for the catalog as a whole,
-  or per-entry, older than `staleness_ttl`)**: use the existing data
-  immediately (still directionally useful even if a day old), and kick off
-  a refresh **in the background**, non-blocking. Optionally surface
-  progress via a footer status widget.
-- **Catalog present and fresh**: no refresh needed, zero network calls.
+### 8.2 Lifecycle split: cheap factory, session-scoped prober (verified against pi docs)
+
+Pi's extension docs are explicit: factories "may run in invocations that
+never start a session" (e.g. `pi --list-models`, RPC) and must **not**
+start timers/background resources — defer those to `session_start`. This
+forces a two-layer split, which also replaces the original
+blocking-first-run design (user decision: never block usage; a 5–10 min
+factory sweep would also hang non-interactive invocations):
+
+- **Async factory (cheap, no probing):** one `GET /models` per configured
+  remote provider (a handful of requests total) and re-register annotated
+  rosters per §7. This keeps the model *roster* fresh on every startup
+  essentially for free. No per-model liveness calls here.
+- **`session_start` (all background work):** load the catalog file, start
+  the throttled trickle prober (§8.4–8.9), register an idempotent
+  `session_shutdown` handler to stop it and flush pending writes.
+
+Refresh behavior:
+- **Catalog file absent (first run ever)**: everything starts as
+  `unverified` and the trickle prober converges over ~an hour. Entries are
+  still immediately visible/selectable in `/model` because roster
+  discovery already happened in the factory — this is why always-
+  background is acceptable despite the §9 sweep estimate.
+- **Catalog present but stale (per-entry `last_checked` older than
+  `staleness_ttl`)**: use existing data immediately, prober refreshes in
+  background. Optionally surface progress via a footer status widget.
+- **Catalog present and fresh**: prober idles; zero probe calls.
 
 ### 8.3 Manual refresh command
 Register `/refresh-free-models` (or similar) so the user can force a
@@ -506,7 +577,8 @@ and is not time-sensitive.
 
 The subagent dispatcher's `README.md` must include a clearly labeled
 section (e.g. "Optional: `pi-free-models` integration") stating:
-- This extension optionally reads `~/.pi/agent/free-models-catalog.json`.
+- This extension optionally reads
+  `~/.pi/agent/extensions/pi-free-models/free-models-catalog.json`.
 - Exact fallback behavior if `pi-free-models` is not installed, or the file
   is missing/malformed/older than a sanity bound: falls back to unmodified
   tier-only selection, no error, no degraded startup.
@@ -526,6 +598,16 @@ Recorded so a future implementer doesn't re-propose and re-reject these:
 - **Formal inter-extension dependency/service API**: no documented pi
   mechanism found for this; file-based coupling chosen instead. Revisit if
   pi ever adds such an API.
+- **Writing `modelOverrides` into the user's `models.json` for annotation**
+  (original §7.1): rejected after verification — `modelOverrides` has no
+  runtime API, so it requires mutating user config with persistent,
+  schema-validated, clobber-prone failure modes. Runtime
+  `pi.registerProvider()` (session-scoped, self-healing, fail-closed) is
+  strictly safer; see §7.1.
+- **Blocking first-run sweep on startup**: rejected by user decision and by
+  pi's factory lifecycle rules (no background work in factories; non-
+  session invocations must not hang). Always-background prober instead;
+  §8.2.
 - **Centrally-shared, community-refreshed model-existence catalog** (to
   avoid every user re-discovering the same roster): rejected for now
   because tracking which providers *other* users are even registered to is
@@ -549,11 +631,20 @@ Recorded so a future implementer doesn't re-propose and re-reject these:
 
 ## 12. Open items for the implementer
 
-- Confirm in the local pi checkout whether the model-picker's rendered
-  `name` field supports ANSI color, to decide if §7.2's glyphs get real
-  color as a bonus or stay plain-text-with-symbols.
-- Confirm (or refute) whether any hidden/disabled flag exists in the
-  models-config schema that would allow true removal (§7.3, §11).
+Resolved during plan review (kept for the record):
+- ~~`registerProvider` replace-vs-merge semantics~~ → **full replacement**,
+  verified in `ModelRegistry.applyProviderConfig`; §7.1 mitigations apply.
+- ~~Whether a hidden/disabled flag exists for true removal~~ → **no**;
+  merge semantics keep built-ins, annotate-only confirmed correct (§7.3).
+- ~~Catalog path discrepancy~~ → fixed at
+  `~/.pi/agent/extensions/pi-free-models/free-models-catalog.json` (§3.1).
+- ~~First-run behavior~~ → always-background, factory/session split (§8.2).
+
+Still open:
+- Confirm in the pi checkout whether the model-picker's rendered `name`
+  field supports ANSI color, to decide if §7.2's glyphs get real color as
+  a bonus or stay plain-text-with-symbols. (Cosmetic only — glyphs carry
+  the signal either way.)
 - Decide exact numeric thresholds for green vs. yellow (this plan
   intentionally left them as named, tunable constants rather than fixed
   numbers, since documented free-tier caps change over time).
