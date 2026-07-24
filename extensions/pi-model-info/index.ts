@@ -39,6 +39,11 @@ export default async function (pi: ExtensionAPI) {
 		new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
 	]);
 
+	// Shared state across handlers to avoid read-modify-write races
+	let currentCatalog: Catalog | null = null;
+	let currentBenchmarks: Map<string, BenchmarkResult> = new Map();
+	let currentCtx: any = null;
+
 	// --- Session lifecycle: discovery, registration, prober, real-usage ---
 
 	pi.on("session_start", async (event, ctx) => {
@@ -50,6 +55,9 @@ export default async function (pi: ExtensionAPI) {
 
 		// 2. Load or create catalog
 		const catalog: Catalog = readCatalog();
+		currentCatalog = catalog;
+		currentBenchmarks = benchmarks;
+		currentCtx = ctx;
 
 		// 3. Build/update catalog entries for all discovered models
 		for (const model of discovered) {
@@ -86,7 +94,7 @@ export default async function (pi: ExtensionAPI) {
 
 	pi.on("after_provider_response", (event, ctx) => {
 		// Capture real-usage signals for catalog updates
-		const catalog = readCatalog();
+		const catalog = currentCatalog ?? readCatalog();
 		const model = ctx.model;
 		if (!model) return;
 
@@ -106,12 +114,14 @@ export default async function (pi: ExtensionAPI) {
 		prov.source = "real";
 
 		const status = event.status;
+		let statusChanged = false;
 
 		if (status === 200 || status === 201) {
 			// Success — reinforce current status
 			if (prov.status === "unverified") {
 				prov.status = "green";
 				prov.status_reason = "ok (real usage)";
+				statusChanged = true;
 			}
 			prov.last_real_call = now;
 			prov.consecutive_synthetic_failures = 0;
@@ -120,11 +130,13 @@ export default async function (pi: ExtensionAPI) {
 			prov.status = "red";
 			prov.status_reason = "404 (real usage)";
 			prov.status_code = 404;
+			statusChanged = true;
 		} else if (status === 429) {
 			// Rate limited — reinforce yellow
 			prov.status = "yellow";
 			prov.status_reason = "rate limited (real usage)";
 			prov.status_code = 429;
+			statusChanged = true;
 			const retryAfter = event.headers?.["retry-after"];
 			if (retryAfter) {
 				const seconds = parseInt(String(retryAfter), 10);
@@ -137,10 +149,65 @@ export default async function (pi: ExtensionAPI) {
 			prov.status = "restricted";
 			prov.status_reason = `account-restricted (${status}, real usage)`;
 			prov.status_code = status;
+			statusChanged = true;
 		}
 		// 400 or other — don't change classification
 
 		scheduleWrite(catalog);
+
+		// Refresh UI if status changed
+		if (statusChanged && currentCtx) {
+			annotateAndRegister(currentCtx, pi, model.provider, catalog, currentBenchmarks);
+		}
+	});
+
+	// Catch 429 errors that bypass after_provider_response (thrown as exceptions)
+	pi.on("agent_end", async (event, ctx) => {
+		if (!currentCatalog) return;
+
+		const messages = event.messages ?? [];
+		for (const msg of messages) {
+			if (msg.role !== "assistant") continue;
+
+			// Check for error messages containing 429
+			const errorText = extractErrorText(msg);
+			if (!errorText) continue;
+
+			const rateLimitInfo = parseRateLimitError(errorText);
+			if (!rateLimitInfo) continue;
+
+			// Find the model that was being used when the error occurred
+			const model = ctx.model;
+			if (!model) continue;
+
+			const baseUrl = (model as any).baseUrl ?? "";
+			if (isLocalUrl(baseUrl)) continue;
+
+			const key = normalizeModelKey(model.id);
+			const entry = currentCatalog.entries[key];
+			if (!entry) continue;
+
+			const prov = entry.providers[model.provider];
+			if (!prov) continue;
+
+			const now = new Date().toISOString();
+			prov.last_checked = now;
+			prov.source = "real";
+			prov.status = "yellow";
+			prov.status_reason = `rate limited (error path): ${rateLimitInfo.reason}`;
+			prov.status_code = 429;
+
+			if (rateLimitInfo.retryAfter) {
+				prov.retry_after = new Date(Date.now() + rateLimitInfo.retryAfter * 1000).toISOString();
+			}
+
+			scheduleWrite(currentCatalog);
+
+			// Refresh UI
+			if (currentCtx) {
+				annotateAndRegister(currentCtx, pi, model.provider, currentCatalog, currentBenchmarks);
+			}
+		}
 	});
 
 	pi.on("session_shutdown", async () => {
@@ -206,4 +273,73 @@ function isLocalUrl(baseUrl: string): boolean {
 		lower.startsWith("http://172.") ||
 		lower.startsWith("http://192.168.")
 	);
+}
+
+/**
+ * Extract error text from an assistant message.
+ * Looks for error content in message parts.
+ */
+function extractErrorText(msg: any): string | null {
+	if (!msg.content) return null;
+
+	for (const part of msg.content) {
+		if (part.type === "text" && part.text) {
+			// Check if this looks like an error message
+			const text = part.text;
+			if (text.includes("429") || text.includes("rate limit") || text.includes("rate-limit") || text.includes("rate_limit")) {
+				return text;
+			}
+		}
+		if (part.type === "error" && part.error) {
+			const errorStr = typeof part.error === "string" ? part.error : JSON.stringify(part.error);
+			if (errorStr.includes("429") || errorStr.includes("rate limit") || errorStr.includes("rate-limit") || errorStr.includes("rate_limit")) {
+				return errorStr;
+			}
+		}
+	}
+
+	// Also check for errorMessage field on the message itself
+	if (msg.errorMessage && (
+		msg.errorMessage.includes("429") ||
+		msg.errorMessage.includes("rate limit") ||
+		msg.errorMessage.includes("rate-limit") ||
+		msg.errorMessage.includes("rate_limit")
+	)) {
+		return msg.errorMessage;
+	}
+
+	return null;
+}
+
+/**
+ * Parse a rate limit error text to extract retry-after and reason.
+ */
+function parseRateLimitError(errorText: string): { retryAfter: number | null; reason: string } | null {
+	// Must contain 429 or rate limit indicators
+	const hasRateLimit = /\b429\b/i.test(errorText) ||
+		/rate[-_\s]?limit/i.test(errorText) ||
+		/temporarily rate-limited/i.test(errorText);
+
+	if (!hasRateLimit) return null;
+
+	// Extract retry-after if present (seconds)
+	let retryAfter: number | null = null;
+	const retryMatch = errorText.match(/retry[-_\s]?after["\s:=]+(\d+)/i) ||
+		errorText.match(/retry["\s:=]+(\d+)\s*seconds?/i) ||
+		errorText.match(/retry in (\d+)s/i);
+	if (retryMatch) {
+		const seconds = parseInt(retryMatch[1], 10);
+		if (!isNaN(seconds) && seconds > 0) {
+			retryAfter = seconds;
+		}
+	}
+
+	// Extract a short reason
+	let reason = "rate limited";
+	const providerMatch = errorText.match(/provider_name["\s:=]+"?([^"\n,}]+)/i);
+	if (providerMatch) {
+		reason = `${providerMatch[1].trim()}: rate limited`;
+	}
+
+	return { retryAfter, reason };
 }

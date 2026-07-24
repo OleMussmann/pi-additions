@@ -61,14 +61,16 @@ pi -e ./extensions/pi-model-info/index.ts
 - Stalest-first: checks oldest entries first
 - Retry-aware: respects `Retry-After` headers
 - Jittered: ±20% interval variation
+- Re-tests **yellow** models when they become stale (24h TTL) — a yellow model that recovers flips back to green on the next probe
 
-### Real-usage capture (after_provider_response)
+### Real-usage capture (after_provider_response + agent_end)
 
 - Every real API call updates the catalog for free
 - 200/201 → reinforces green, records `last_real_call`
 - 404 → immediately marks red
 - 429 → reinforces yellow, stores `retry_after`
 - 401/403/402 → marks as restricted (account-specific)
+- Errors that bypass `after_provider_response` (e.g., immediate 429 exceptions) are caught via `agent_end` by scanning error messages
 
 ## Catalog file
 
