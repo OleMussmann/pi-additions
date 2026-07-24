@@ -94,6 +94,10 @@ export function normalizeModelKey(rawId: string): string {
 	key = key.replace(/:free$/i, "");
 	key = key.replace(/-free$/i, "");
 
+	// Strip inference-optimization suffixes (MTP = multi-token prediction,
+	// a speculative decoding speed boost; same model weights/accuracy)
+	key = key.replace(/-mtp$/i, "");
+
 	// Lowercase
 	key = key.toLowerCase();
 

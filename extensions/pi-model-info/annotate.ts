@@ -122,8 +122,11 @@ function buildAnnotatedName(
 		meta.push("?");
 	}
 
-	// Benchmark score (coding preferred, fallback to overall)
-	const score = benchmark?.coding_score ?? benchmark?.overall_score ?? null;
+	// Benchmark score: use the overall BenchLM.ai display score (top-level
+	// displayScore from models.json), which matches the leaderboard. We used
+	// to prefer coding_score but it diverges from the web page and confuses
+	// users — the overall score is the canonical metric BenchLM exposes.
+	const score = benchmark?.overall_score ?? null;
 	if (score !== null) {
 		meta.push(`${Math.round(score)}%`);
 	}
@@ -171,6 +174,25 @@ function getProviderModels(ctx: ExtensionContext, providerId: string): Model<Api
 	}
 }
 
+/** Known variant suffixes that providers add but BenchLM doesn't track. */
+const VARIANT_SUFFIXES = [
+	/-fast$/i,
+	/-extended$/i,
+	/-preview$/i,
+	/-beta$/i,
+	/-alpha$/i,
+	/-latest$/i,
+	/-exp$/i,
+];
+
+function stripVariantSuffixes(key: string): string {
+	for (const re of VARIANT_SUFFIXES) {
+		key = key.replace(re, "");
+	}
+	// Collapse any trailing hyphens left behind
+	return key.replace(/-+$/, "");
+}
+
 function findBenchmarkByFallback(
 	model: Model<Api>,
 	benchmarks: Map<string, BenchmarkResult>,
@@ -183,9 +205,24 @@ function findBenchmarkByFallback(
 	const nameKey = normalizeModelKey(model.name ?? model.id);
 	if (benchmarks.has(nameKey)) return benchmarks.get(nameKey);
 
-	// Try partial match as last resort
-	for (const [bmKey, value] of benchmarks) {
-		if (bmKey.includes(key) || key.includes(bmKey)) return value;
+	// Strip known variant suffixes and try again
+	const baseKey = stripVariantSuffixes(key);
+	if (baseKey !== key && benchmarks.has(baseKey)) {
+		return benchmarks.get(baseKey);
+	}
+	const baseNameKey = stripVariantSuffixes(nameKey);
+	if (baseNameKey !== nameKey && benchmarks.has(baseNameKey)) {
+		return benchmarks.get(baseNameKey);
+	}
+
+	// Try partial match as last resort (require at least 6 chars to avoid
+	// trivial matches like "gpt" matching everything)
+	if (key.length >= 6) {
+		for (const [bmKey, value] of benchmarks) {
+			if (bmKey.length >= 6 && (bmKey.includes(key) || key.includes(bmKey))) {
+				return value;
+			}
+		}
 	}
 
 	return undefined;

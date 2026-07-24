@@ -7,17 +7,17 @@ Enriched model roster for [pi](https://github.com/earendil-works/pi). Discovers 
 - **Discovers all models** from every configured non-local provider (OpenRouter, Anthropic, Google, etc.)
 - **Enriches `/model`** with pricing, context window, and benchmark scores — no more guessing which model is which
 - **Tracks free-model availability** with live liveness probing (green/yellow/red/restricted/unverified)
-- **Fetches benchmarks** from [BenchLM.ai](https://benchlm.ai)'s free API — composite score, coding score, agentic score for 290+ model families
+- **Fetches benchmarks** from [BenchLM.ai](https://benchlm.ai)'s free API — overall score (top-level `displayScore`, matching the web leaderboard) for 290+ model families
 - **Updates in real-time** via `after_provider_response` — real usage feeds back into the catalog for free
 
 ### Display format in /model
 
 ```
-✓ Qwen3-235B ($0/$0 · 128k · 56%)       ← free, green, coding score = 56%
+✓ Qwen3-235B ($0/$0 · 128k · 56%)       ← free, green, overall score = 56%
 ~ Hy3 ($0/$0 · 200k · ~50 req/min)       ← free, yellow (tight limits)
 ✗ Hy3 ($0/$0 · 128k) — unavailable       ← free, dead
 ? Small Model ($0/$0 · ?) — unchecked     ← free, unverified
-Claude Sonnet 4 ($3/$15 · 200k · 42%)     ← paid, coding score = 42%
+Claude Sonnet 4 ($3/$15 · 200k · 42%)     ← paid, overall score = 42%
 ! GPT-4o ($5/$15 · 128k) — restricted    ← paid, account-blocked
 ```
 
@@ -87,7 +87,7 @@ Stored at `~/.pi/agent/extensions/pi-model-info/model-catalog.json`.
       "is_free": true,
       "benchmarks": {
         "overall_score": 56.02,
-        "coding_score": 42.5,
+        "coding_score": null,
         "agentic_score": null
       },
       "providers": {

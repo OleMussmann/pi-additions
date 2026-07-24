@@ -31,7 +31,7 @@ export const CATALOG_PATH = path.join(getAgentDir(), "extensions", "pi-model-inf
 
 /** BenchLM.ai API endpoints */
 export const BENCHLM_API_BASE = "https://benchlm.ai/api/data";
-export const BENCHLM_LEADERBOARD_URL = `${BENCHLM_API_BASE}/leaderboard`;
+export const BENCHLM_MODELS_URL = `https://benchlm.ai/data/models.json`;
 
 /** Provider kinds that are local and should be skipped */
 export const LOCAL_PROVIDER_KINDS = new Set([

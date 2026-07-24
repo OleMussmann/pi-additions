@@ -4,35 +4,36 @@
  * Attribution: Data from BenchLM.ai (https://benchlm.ai), MIT license.
  */
 
-import { BENCHLM_LEADERBOARD_URL, BENCHMARK_CACHE_TTL_MS } from "./config.ts";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { BENCHLM_MODELS_URL, BENCHMARK_CACHE_TTL_MS } from "./config.ts";
+import { CATALOG_PATH } from "./config.ts";
 
 // ---------------------------------------------------------------------------
-// Types matching BenchLM.ai API response shape
+// Types matching BenchLM.ai models.json response shape
 // ---------------------------------------------------------------------------
 
 type BenchLMModel = {
-	rank: number;
 	model: string;
 	creator: string;
-	sourceType: string;
-	overallScore: number | null;
-	categoryScores: {
-		agentic: number | null;
-		coding: number | null;
-		reasoning: number | null;
-		multimodalGrounded: number | null;
-		knowledge: number | null;
-		multilingual: number | null;
-		instructionFollowing: number | null;
-		math: number | null;
+	displayScore: number | null;
+	scores: {
+		displayScore: number | null;
+		displayCategoryScores: {
+			agentic: number | null;
+			coding: number | null;
+			reasoning: number | null;
+			multimodalGrounded: number | null;
+			knowledge: number | null;
+			multilingual: number | null;
+			instructionFollowing: number | null;
+			math: number | null;
+		} | null;
 	} | null;
-	inputPrice: number | null;
-	outputPrice: number | null;
 };
 
 type BenchLMResponse = {
-	lastUpdated: string;
-	models: BenchLMModel[];
+	items: BenchLMModel[];
 };
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,33 @@ type BenchLMResponse = {
 
 let cachedData: BenchLMResponse | null = null;
 let cacheTimestamp: number = 0;
+
+const DISK_CACHE_PATH = path.join(path.dirname(CATALOG_PATH), "benchmarks-cache.json");
+
+function loadDiskCache(): BenchLMResponse | null {
+	try {
+		const raw = fs.readFileSync(DISK_CACHE_PATH, "utf-8");
+		const parsed = JSON.parse(raw) as { timestamp: number; data: BenchLMResponse };
+		if (parsed?.data?.items && Array.isArray(parsed.data.items)) {
+			return { timestamp: parsed.timestamp, data: parsed.data } as any;
+		}
+	} catch {
+		// Missing or corrupt cache — fine
+	}
+	return null;
+}
+
+function saveDiskCache(data: BenchLMResponse): void {
+	try {
+		const dir = path.dirname(DISK_CACHE_PATH);
+		fs.mkdirSync(dir, { recursive: true });
+		const tmpPath = `${DISK_CACHE_PATH}.tmp.${Date.now()}`;
+		fs.writeFileSync(tmpPath, JSON.stringify({ timestamp: Date.now(), data }), "utf-8");
+		fs.renameSync(tmpPath, DISK_CACHE_PATH);
+	} catch {
+		// Best-effort — ignore write errors
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -59,13 +87,22 @@ export type BenchmarkResult = {
 export async function fetchBenchmarks(): Promise<Map<string, BenchmarkResult>> {
 	const now = Date.now();
 
-	// Return cached data if fresh
+	// Return in-memory cached data if fresh
 	if (cachedData && now - cacheTimestamp < BENCHMARK_CACHE_TTL_MS) {
 		return indexBenchmarks(cachedData);
 	}
 
+	// Try disk cache (instant, no network)
+	const disk = loadDiskCache();
+	if (disk && disk.timestamp && now - disk.timestamp < BENCHMARK_CACHE_TTL_MS) {
+		cachedData = disk.data;
+		cacheTimestamp = disk.timestamp;
+		return indexBenchmarks(disk.data);
+	}
+
+	// Network fetch (slow path)
 	try {
-		const response = await fetch(BENCHLM_LEADERBOARD_URL, {
+		const response = await fetch(BENCHLM_MODELS_URL, {
 			headers: { Accept: "application/json" },
 			signal: AbortSignal.timeout(15_000),
 		});
@@ -76,9 +113,10 @@ export async function fetchBenchmarks(): Promise<Map<string, BenchmarkResult>> {
 		}
 
 		const data = (await response.json()) as BenchLMResponse;
-		if (data?.models && Array.isArray(data.models)) {
+		if (data?.items && Array.isArray(data.items)) {
 			cachedData = data;
 			cacheTimestamp = now;
+			saveDiskCache(data);
 			return indexBenchmarks(data);
 		}
 
@@ -107,14 +145,14 @@ export async function refreshBenchmarks(): Promise<Map<string, BenchmarkResult>>
 function indexBenchmarks(data: BenchLMResponse): Map<string, BenchmarkResult> {
 	const map = new Map<string, BenchmarkResult>();
 
-	for (const model of data.models) {
+	for (const model of data.items) {
 		// Use the model name as the lookup key (lowercased, stripped)
 		const key = normalizeBenchLMName(model.model);
 		if (key) {
 			map.set(key, {
-				overall_score: model.overallScore,
-				coding_score: model.categoryScores?.coding ?? null,
-				agentic_score: model.categoryScores?.agentic ?? null,
+				overall_score: model.displayScore ?? model.scores?.displayScore ?? null,
+				coding_score: model.scores?.displayCategoryScores?.coding ?? null,
+				agentic_score: model.scores?.displayCategoryScores?.agentic ?? null,
 			});
 		}
 
@@ -122,9 +160,9 @@ function indexBenchmarks(data: BenchLMResponse): Map<string, BenchmarkResult> {
 		const comboKey = normalizeBenchLMName(`${model.creator} ${model.model}`);
 		if (comboKey && comboKey !== key) {
 			map.set(comboKey, {
-				overall_score: model.overallScore,
-				coding_score: model.categoryScores?.coding ?? null,
-				agentic_score: model.categoryScores?.agentic ?? null,
+				overall_score: model.displayScore ?? model.scores?.displayScore ?? null,
+				coding_score: model.scores?.displayCategoryScores?.coding ?? null,
+				agentic_score: model.scores?.displayCategoryScores?.agentic ?? null,
 			});
 		}
 	}

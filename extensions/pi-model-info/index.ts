@@ -31,14 +31,22 @@ import { loadConfig } from "./config.ts";
 export default async function (pi: ExtensionAPI) {
 	const config = loadConfig();
 
-	// --- Async factory: only fetch benchmarks (no modelRegistry needed here) ---
-	const benchmarks = await fetchBenchmarks();
+	// Warm benchmark cache (disk read on restart, network on first run).
+	// pi awaits this before firing session_start — must stay async.
+	// Race against a short timeout so a slow BenchLM.ai doesn't block startup.
+	await Promise.race([
+		fetchBenchmarks(),
+		new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+	]);
 
 	// --- Session lifecycle: discovery, registration, prober, real-usage ---
 
 	pi.on("session_start", async (event, ctx) => {
-		// 1. Discover all models from configured non-local providers
-		const discovered = await discoverModels(ctx);
+		// 1. Discover models and fetch benchmarks in parallel
+		const [discovered, benchmarks] = await Promise.all([
+			discoverModels(ctx),
+			fetchBenchmarks(),
+		]);
 
 		// 2. Load or create catalog
 		const catalog: Catalog = readCatalog();
@@ -147,8 +155,10 @@ export default async function (pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			ctx.ui.notify("Refreshing model catalog...", "info");
 
-			const benchmarks = await refreshBenchmarks();
-			const discovered = await discoverModels(ctx);
+			const [discovered, benchmarks] = await Promise.all([
+				discoverModels(ctx),
+				refreshBenchmarks(),
+			]);
 			const catalog = readCatalog();
 
 			// Rebuild catalog
