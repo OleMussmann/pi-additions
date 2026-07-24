@@ -11,10 +11,15 @@ done thinking, so you can switch back to the session without polling.
 
 ## How it works
 
-The extension listens for pi's `agent_settled` event — the point at which Pi will **not**
-continue running automatically (unlike `agent_end`, which also fires before auto-retries or
-queued follow-ups). When the session is idle (`ctx.isIdle()`), it writes a notification escape
-sequence to stdout.
+`pi-notify` fires a notification in two situations:
+
+1. **Agent idle** — Pi finishes a run and is waiting for your next prompt. The extension
+   listens for the `agent_settled` event (the point at which Pi will **not** continue
+   running automatically) and writes a notification escape sequence to stdout when
+   `ctx.isIdle()` is true.
+2. **User-interaction tool** — Pi calls a tool that requires your input (e.g. `ask_user`).
+   The extension listens for `tool_call` and notifies immediately when a tool from the
+   config list is invoked, before its UI appears.
 
 Supported terminal protocols (auto-detected):
 
@@ -51,8 +56,38 @@ After install, start Pi (`pi`) and press `Ctrl+O` to expand startup resources �
 
 ## Configuration
 
-None. The extension is zero-config and uses only environment variables that your terminal
-sets automatically.
+### The config file
+
+On first session start, `pi-notify` auto-creates a config file:
+
+**`~/.pi/agent/extensions/pi-notify/tools.json`**
+
+```json
+{
+  "toolsRequiringInteraction": ["ask_user"]
+}
+```
+
+- `toolsRequiringInteraction` — array of tool names that should trigger a notification
+  when called. Pi notifies immediately when the tool is invoked, before its UI appears.
+
+The config file is the sole source of truth. To add more tools, edit the file and run
+`/reload`. To disable tool notifications, set the array to `[]`.
+
+## Differences from the original pi example
+
+`pi-notify` is derived from the [notify.ts example](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/examples/extensions/notify.ts) in the pi documentation. Key differences:
+
+| Feature | Original example | pi-notify |
+|---------|-----------------|----------|
+| **Trigger** | `agent_settled` only | `agent_settled` + `tool_call` for user-interaction tools |
+| **User-interaction tools** | Not handled | Notifies immediately when tools in the config list are called |
+| **Config file** | None | Auto-created `tools.json` to specify which tools trigger notifications |
+| **Package** | Single-file example | Installable pi package with `package.json` |
+
+The original example is a minimal starting point. `pi-notify` extends it to cover the
+case where Pi pauses for your input mid-run (e.g. a question from `ask_user`), not just
+when it finishes a run.
 
 ## Compatibility
 
