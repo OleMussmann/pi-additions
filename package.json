@@ -1,7 +1,7 @@
 {
   "name": "pi-additions",
   "version": "0.1.2",
-  "description": "Bundled Pi coding agent extensions: pi-frame, pi-ketch, pi-subagents, pi-plan-mode-default, pi-notify",
+  "description": "Bundled Pi coding agent extensions: pi-frame, pi-ketch, pi-subagents, pi-plan-mode-default, pi-notify, pi-model-info",
   "type": "module",
   "repository": {
     "type": "git",
@@ -30,7 +30,8 @@
       "./extensions/pi-ketch/index.ts",
       "./extensions/pi-subagents/index.ts",
       "./extensions/pi-plan-mode-default/index.ts",
-      "./extensions/pi-notify/index.ts"
+      "./extensions/pi-notify/index.ts",
+      "./extensions/pi-model-info/index.ts"
     ]
   },
   "peerDependencies": {

@@ -1,8 +1,8 @@
-# PLAN.md — `pi-free-models` extension
+# PLAN.md — `pi-model-info` extension
 
 ## 1. Goal
 
-Build a `pi` extension, `pi-free-models`, that maintains a locally-cached,
+Build a `pi` extension, `pi-model-info`, that maintains a locally-cached,
 periodically-refreshed catalog of free-tier LLM models (across OpenRouter and
 other configured gateways/foundation-model free tiers) and annotates pi's
 `/model` list so the user can see, at a glance, which free models are
@@ -11,7 +11,7 @@ currently alive and how tight their usage limits are.
 A second, already-existing extension (subagent dispatcher, which spawns
 light/medium/heavy subagents for different task types) should **optionally**
 consume this catalog to prefer highly-available models within whatever tier
-it has already selected — without requiring `pi-free-models` to be installed.
+it has already selected — without requiring `pi-model-info` to be installed.
 
 This document is the spec for an implementing agent. It captures not just
 *what* to build but *why*, since several design decisions here were reached
@@ -26,7 +26,7 @@ Two independent pi extensions, coupled only through a shared file on disk —
 not appear to expose a documented inter-extension service registry. Coupling
 through a file keeps both extensions independently installable/removable.
 
-### 2.1 `pi-free-models` (this project)
+### 2.1 `pi-model-info` (this project)
 Owns:
 - Discovering which free models exist across configured providers.
 - Pinging them (lightly, see §5) to determine live/dead/rate-limited status.
@@ -37,13 +37,13 @@ Owns:
 
 Does **not** own:
 - Task-to-tier mapping (light/medium/heavy) — that's the other extension's
-  job entirely. `pi-free-models` only answers "is X alive and how
+  job entirely. `pi-model-info` only answers "is X alive and how
   rate-limited is it," never "what kind of task is X good for."
 - Coding-performance benchmarking — leaderboard scores (e.g. Aider Polyglot)
   are looked up/joined during catalog building, not computed locally.
 
 ### 2.2 Subagent dispatcher (existing extension, modified)
-Add a **soft optional dependency** on `pi-free-models`'s catalog file:
+Add a **soft optional dependency** on `pi-model-info`'s catalog file:
 - If the file exists and is fresh enough to parse, use it to prefer
   green > yellow > red/unavailable within whatever tier (light/medium/heavy)
   it already picked for the task.
@@ -54,7 +54,7 @@ Add a **soft optional dependency** on `pi-free-models`'s catalog file:
 - This soft dependency, and its exact fallback behavior, **must be
   documented in the dispatcher's README.md** in a dedicated section (see
   §10) so it's clear to any user (or future maintainer) that
-  `pi-free-models` is optional, what happens if it's missing, and what
+  `pi-model-info` is optional, what happens if it's missing, and what
   file/schema it reads.
 
 ---
@@ -62,7 +62,7 @@ Add a **soft optional dependency** on `pi-free-models`'s catalog file:
 ## 3. Catalog file
 
 ### 3.1 Location
-`~/.pi/agent/extensions/pi-free-models/free-models-catalog.json`
+`~/.pi/agent/extensions/pi-model-info/model-catalog.json`
 
 Well-known, fixed path, inside the extension's own directory package
 (consistent with the user's existing convention of extension data living
@@ -83,7 +83,7 @@ whatever providers expose it) from **provider-level** liveness/limit data
 ```jsonc
 {
   "schema_version": 1,
-  "generated_by": "pi-free-models",
+  "generated_by": "pi-model-info",
   "entries": {
     "<normalized_model_key>": {
       // model-level: assumed shared across providers (see caveats below)
@@ -203,7 +203,7 @@ prober in §5/§8 in the first place. This also means:
 - If a model happens to be reachable both locally *and* via a remote
   free-tier gateway (same weights, different route), only the remote
   gateway's entry is tracked. The local route is invisible to
-  `pi-free-models` by design.
+  `pi-model-info` by design.
 - This exclusion applies to **real-usage capture too** (§6.1), not just
   synthetic probing — a real call routed to a local provider should not be
   written into the catalog at all, since there's nothing meaningful to
@@ -576,16 +576,16 @@ and is not time-sensitive.
 ## 10. Documentation requirement
 
 The subagent dispatcher's `README.md` must include a clearly labeled
-section (e.g. "Optional: `pi-free-models` integration") stating:
+section (e.g. "Optional: `pi-model-info` integration") stating:
 - This extension optionally reads
-  `~/.pi/agent/extensions/pi-free-models/free-models-catalog.json`.
-- Exact fallback behavior if `pi-free-models` is not installed, or the file
+  `~/.pi/agent/extensions/pi-model-info/model-catalog.json`.
+- Exact fallback behavior if `pi-model-info` is not installed, or the file
   is missing/malformed/older than a sanity bound: falls back to unmodified
   tier-only selection, no error, no degraded startup.
 - The schema version it expects, so future catalog format changes have a
   documented compatibility point.
 
-`pi-free-models`'s own README should document its output file path/schema
+`pi-model-info`'s own README should document its output file path/schema
 as a stable-ish public contract, precisely because another extension
 depends on it.
 
@@ -637,7 +637,7 @@ Resolved during plan review (kept for the record):
 - ~~Whether a hidden/disabled flag exists for true removal~~ → **no**;
   merge semantics keep built-ins, annotate-only confirmed correct (§7.3).
 - ~~Catalog path discrepancy~~ → fixed at
-  `~/.pi/agent/extensions/pi-free-models/free-models-catalog.json` (§3.1).
+  `~/.pi/agent/extensions/pi-model-info/model-catalog.json` (§3.1).
 - ~~First-run behavior~~ → always-background, factory/session split (§8.2).
 
 Still open:

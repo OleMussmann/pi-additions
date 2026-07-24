@@ -42,6 +42,7 @@ pi install ./extensions/pi-ketch
 pi install ./extensions/pi-subagents
 pi install ./extensions/pi-plan-mode-default
 pi install ./extensions/pi-notify
+pi install ./extensions/pi-model-info
 
 # Or load a single extension for one run (temp dir)
 pi -e ./extensions/pi-subagents/index.ts
@@ -49,10 +50,11 @@ pi -e ./extensions/pi-ketch/index.ts
 pi -e ./extensions/pi-frame/index.ts
 pi -e ./extensions/pi-plan-mode-default/index.ts
 pi -e ./extensions/pi-notify/index.ts
+pi -e ./extensions/pi-model-info/index.ts
 ```
 
 After install, start Pi (`pi`) and press `Ctrl+O` to expand startup resources —
-the `[Extensions]` section should list all four `pi-additions:*` entries.
+the `[Extensions]` section should list all six `pi-additions:*` entries.
 
 ## Activate / deactivate extensions
 
@@ -144,18 +146,26 @@ Sends a **native terminal notification** when Pi settles and is idle, waiting fo
 Zero-config; supports OSC 777 (Ghostty, iTerm2, WezTerm, rxvt-unicode), OSC 99 (Kitty), and
 Windows toast (Windows Terminal / WSL). See `extensions/pi-notify/README.md`.
 
+### pi-model-info
+Enriched model roster — discovers all models from configured providers, fetches pricing and
+benchmark scores from [BenchLM.ai](https://benchlm.ai) (free API, no key required), tracks
+free-model availability with background liveness probing, and annotates `/model` with pricing,
+context window, and scores. Free models get glyph prefixes (✓/~/✗/!/?). Use `/refresh-models`
+to force a refresh. See `extensions/pi-model-info/README.md`.
+
 ## Layout
 
 ```
 pi-additions/
-├── package.json            # pi manifest: lists the 4 extensions
+├── package.json            # pi manifest: lists the extensions
 ├── README.md
 └── extensions/
     ├── pi-frame/           # index.ts + helpers, render, git, types
     ├── pi-ketch/            # index.ts + skills/ketch (bundled skill), PLAN.md, IMPL.md
     ├── pi-subagents/       # index.ts + agents/, models, config, guardrail
     ├── pi-plan-mode-default/  # index.ts + utils
-    └── pi-notify/          # index.ts
+    ├── pi-notify/          # index.ts
+    └── pi-model-info/      # index.ts + catalog, discovery, benchmarks, prober, annotate
 ```
 
 ## License
@@ -165,3 +175,6 @@ MIT. This bundle is copyrighted by Ole Mussmann, and three of its extensions
 pi example extensions originally authored by Mario Zechner (earendil-works/pi). See
 [`LICENSE`](./LICENSE) for the full dual copyright attribution, and each extension's
 own `LICENSE` / `package.json` for per-extension details.
+
+Benchmark data used by `pi-model-info` is provided by [BenchLM.ai](https://benchlm.ai)
+under the MIT license with attribution.
