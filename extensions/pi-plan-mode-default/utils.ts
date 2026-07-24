@@ -92,10 +92,24 @@ const SAFE_PATTERNS = [
 	/^\s*fd\b/,
 	/^\s*bat\b/,
 	/^\s*eza\b/,
+	/^\s*rtk\b/,
 ];
+
+/**
+ * Strip leading environment variable assignments (export VAR=VALUE; or VAR=VALUE;)
+ * before checking against SAFE_PATTERNS. This handles tools like rtk-optimizer
+ * that prepend env setup to commands.
+ *
+ * DESTRUCTIVE_PATTERNS still runs on the full command, so dangerous commands
+ * like `export X=1; rm -rf /` are still blocked.
+ */
+function stripLeadingEnvAssignments(command: string): string {
+	return command.replace(/^\s*(?:(?:export\s+)?\w+=[^;]+;\s*)+/, "");
+}
 
 export function isSafeCommand(command: string): boolean {
 	const isDestructive = DESTRUCTIVE_PATTERNS.some((p) => p.test(command));
-	const isSafe = SAFE_PATTERNS.some((p) => p.test(command));
+	const stripped = stripLeadingEnvAssignments(command);
+	const isSafe = SAFE_PATTERNS.some((p) => p.test(stripped));
 	return !isDestructive && isSafe;
 }
