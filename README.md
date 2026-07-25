@@ -7,7 +7,7 @@ coding-agent extensions:
 |-----------|--------------|
 | [`pi-frame`](./extensions/pi-frame) | Decorates the editor input area with a styled box/bar + live stats (model, mode, context, cost, git, …) |
 | [`pi-ketch`](./extensions/pi-ketch) | Native `web` tool wrapping the `ketch` CLI for external research — web search, OSS code search, library docs, scrape, crawl (with a bundled `ketch` skill) |
-| [`pi-subagents`](./extensions/pi-subagents) | Read-only, model-aware subagent delegation (`/delegate`, `subagent` tool) with automatic free-model tier selection and guardrails |
+| [`pi-subagents`](./extensions/pi-subagents) | Read-only, model-aware subagent delegation (`/delegate`, `subagent` tool) with automatic free-model tier selection, availability-aware picking (optional pi-model-info integration), and guardrails |
 | [`pi-plan-mode-default`](./extensions/pi-plan-mode-default) | Plan mode by default for interactive sessions; structured plan management via the `plan_item` tool (`/plan`, `/exec`, `Ctrl+Alt+P`) |
 | [`pi-notify`](./extensions/pi-notify) | Native terminal notification when Pi is idle and waiting for input (OSC 777, OSC 99/Kitty, Windows toast) |
 
@@ -124,8 +124,12 @@ subagent for synthesized answers. Read-only — safe in plan mode. Requires `ket
 
 ### pi-subagents
 Spawns read-only research subagents that auto-discover zero-cost models and pick one by
-capability tier (`fast` / `balanced` / `powerful`). Bash is allow/block-listed; sensitive
-paths and env vars are stripped. Use via the `subagent` tool or `/delegate`.
+capability tier (`fast` / `balanced` / `powerful`). Tier boundaries are computed from the
+**free-only** model pool. Local inference backends (Ollama, llama.cpp, LM Studio, vLLM,
+llama-swap) are automatically excluded — they compete with the main model for VRAM. When
+[`pi-model-info`](#pi-model-info) is installed, model selection becomes availability-aware:
+green > unverified > yellow across tiers. Bash is allow/block-listed; sensitive paths and
+env vars are stripped. Use via the `subagent` tool or `/delegate`.
 
 > **No setup needed for the bundled agents.** The extension auto-discovers its own agents
 > (`subagent-scout`, `subagent-researcher`, `subagent-web-search`) from its bundled `agents/`
@@ -150,7 +154,8 @@ Windows toast (Windows Terminal / WSL). See `extensions/pi-notify/README.md`.
 Enriched model roster — discovers all models from configured providers, fetches pricing and
 benchmark scores from [BenchLM.ai](https://benchlm.ai) (free API, no key required), tracks
 free-model availability with background liveness probing, and annotates `/model` with pricing,
-context window, and scores. Free models get glyph prefixes (✓/~/✗/!/?). Use `/refresh-models`
+context window, and scores. Free models get glyph prefixes (✓/~/✗/!/?). Feeds availability
+data to pi-subagents for green > yellow > red model selection. Use `/refresh-models`
 to force a refresh. See `extensions/pi-model-info/README.md`.
 
 ## Layout

@@ -124,7 +124,7 @@ The extension uses sensible defaults. Local providers (Ollama, LM Studio, llama.
 ### Excluded providers
 
 Providers with these characteristics are skipped:
-- Provider ID or API type matches: `ollama`, `lmstudio`, `llama.cpp`, `lm-studio`, `vllm`
+- Provider ID or API type matches: `ollama`, `lmstudio`, `llama.cpp`, `lm-studio`, `llama-swap`, `vllm`
 - Base URL contains: `localhost`, `127.0.0.1`, `0.0.0.0`, private IP ranges
 
 ## Dependencies

@@ -13,12 +13,15 @@ export interface SubagentConfig {
 	excludePatterns: string[];
 	/** Additional sensitive path patterns beyond defaults */
 	sensitivePaths: string[];
+	/** Path to pi-model-info's catalog file (enables availability-aware model selection) */
+	catalogPath: string;
 }
 
 const DEFAULT_CONFIG: SubagentConfig = {
 	excludeProviders: ["ollama", "lmstudio"],
 	excludePatterns: ["localhost", "127.0.0.1"],
 	sensitivePaths: [],
+	catalogPath: path.join(getAgentDir(), "extensions", "pi-model-info", "model-catalog.json"),
 };
 
 export function loadConfig(): SubagentConfig {
@@ -35,6 +38,7 @@ export function loadConfig(): SubagentConfig {
 			excludeProviders: parsed.excludeProviders ?? DEFAULT_CONFIG.excludeProviders,
 			excludePatterns: parsed.excludePatterns ?? DEFAULT_CONFIG.excludePatterns,
 			sensitivePaths: parsed.sensitivePaths ?? DEFAULT_CONFIG.sensitivePaths,
+			catalogPath: parsed.catalogPath ?? DEFAULT_CONFIG.catalogPath,
 		};
 	} catch {
 		return { ...DEFAULT_CONFIG };

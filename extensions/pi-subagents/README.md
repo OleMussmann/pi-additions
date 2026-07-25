@@ -70,6 +70,7 @@ Create `~/.pi/agent/subagent-config.json`:
 | `excludeProviders` | `["ollama", "lmstudio"]` | Provider names to exclude from subagent pool |
 | `excludePatterns` | `["localhost", "127.0.0.1"]` | Substrings to filter from provider/model IDs |
 | `sensitivePaths` | `[]` | Additional path patterns to block beyond defaults |
+| `catalogPath` | `~/.pi/agent/extensions/pi-model-info/model-catalog.json` | Path to pi-model-info's catalog for availability-aware model selection (optional) |
 
 ## Usage
 
@@ -134,13 +135,52 @@ Quick delegation with safe defaults (balanced tier, summary output):
 
 This wraps the subagent tool with sensible defaults.
 
+## Optional: pi-model-info integration
+
+If [`pi-model-info`](https://github.com/OleMussmann/pi-additions/tree/main/extensions/pi-model-info) is installed, subagent-plus reads its `model-catalog.json` to make **availability-aware model selections** instead of picking the highest-scored model in a tier blindly.
+
+When the catalog is present, the selection follows a three-pass priority ladder:
+
+| Pass | What | Tier order | Why |
+|------|------|------------|-----|
+| 1 | **green** models | target → higher → lower | Confirmed working — preferred |
+| 2 | **unverified** models | target → higher → lower | Unknown but might work — try before known-rate-limited |
+| 3 | **yellow** models | target → higher → lower | Known rate-limited — last resort before failure |
+
+If all models in every tier are `red` (confirmed dead) or `restricted` (account-gated), the subagent reports "no free model available" with a clear error message rather than silently trying a dead model.
+
+### Fallback when catalog is absent
+
+If `pi-model-info` is not installed, the catalog is missing, malformed, or has an unknown schema version: subagent-plus falls back to its original behavior (pick the highest-scored model in the requested tier, no availability filtering). This is a soft dependency — never blocks or errors a subagent spawn.
+
+### Status lifecycle
+
+Models not yet in the catalog default to `unverified` (pass 2). Once a model is used and returns a response, pi-model-info's `after_provider_response` handler records the outcome:
+- **200/201** → `green` (pass 1 next time)
+- **429** → `yellow` (pass 3)
+- **404** → `red` (skipped entirely)
+
+This means models in active rotation self-correct after one failure.
+
+### Configuration
+
+The catalog path can be overridden via `subagent-config.json`:
+
+```json
+{
+  "catalogPath": "/custom/path/model-catalog.json"
+}
+```
+
+Default: `~/.pi/agent/extensions/pi-model-info/model-catalog.json`
+
 ## Model Discovery and Tier Selection
 
 subagent-plus discovers available models at runtime using pi's `modelRegistry.getAvailable()`.
 
 ### Scoring
 
-All available models are scored using metadata:
+Free models are scored using metadata:
 
 ```
 score = contextWindow/1000 + maxTokens/100 + reasoning_bonus(500) + multimodal_bonus(100)
@@ -148,7 +188,7 @@ score = contextWindow/1000 + maxTokens/100 + reasoning_bonus(500) + multimodal_b
 
 ### Tier Assignment
 
-The 33rd and 67th percentiles of the **full** model spectrum define tier boundaries:
+Tier boundaries are computed from the **free-only** model pool (33rd/67th percentiles), so tiers reflect meaningful distinctions within what's actually usable:
 
 - **fast** (bottom 33%): Small context, no reasoning
 - **balanced** (middle 33%): Moderate context, general purpose
@@ -161,8 +201,10 @@ Only **zero-cost models** (`cost.input === 0 && cost.output === 0`) from non-loc
 If a tier has no eligible models, the extension falls back:
 
 ```
-requested tier → next lower tier → any free model → error with diagnostics
+requested tier → next lower tier → error with diagnostics
 ```
+
+When pi-model-info is installed and the catalog is available, the fallback also checks higher tiers for green models before lower tiers for yellow — see [optional integration](#optional-pi-model-info-integration).
 
 ## Read-Only Guardrails
 
@@ -225,9 +267,9 @@ Control how much output the subagent returns:
 
 Model names and IDs change constantly. Hardcoded lists become stale. Percentile scoring on metadata adapts automatically to new models.
 
-### Why score all models, not just free ones?
+### Why free-only percentile scoring?
 
-Scoring the full spectrum ensures tier boundaries reflect the current state of the AI model landscape. If all free models are small, they still distribute meaningfully across tiers relative to the global baseline.
+Earlier versions scored all models (paid + free) and then assigned tiers from global percentiles. In practice, paid models dominate the upper range, collapsing all free models into the "fast" tier. Switching to **free-only** percentiles ensures the three tiers reflect meaningful distinctions within what's actually usable — the top third of free models are "powerful", not just the top third of all models (which are all paid).
 
 ### Why no writeAccess parameter?
 
@@ -236,6 +278,10 @@ Subagents are research delegates. File modifications should happen in the main m
 ### Why user confirmation for write access was rejected
 
 The simpler and stronger design is to simply not allow writes. No confirmation dialogs, no edge cases, no accidental modifications.
+
+### Why automatic local provider exclusion?
+
+Local inference backends (Ollama, llama.cpp, LM Studio, vLLM, llama-swap) compete with the main model for VRAM and may not be running when a subagent needs them. Rather than relying on users to configure exclusions, the extension maintains a built-in list of known local providers and checks provider names — matching pi-model-info's detection logic. Users can still add exclusions via `subagent-config.json`.
 
 ## Included Agents
 
@@ -251,6 +297,7 @@ The simpler and stronger design is to simply not allow writes. No confirmation d
 - Per-task output capped at 50 KB in parallel mode (full results in tool details)
 - Model discovery requires at least one zero-cost model configured in pi
 - Free tiers often have rate limits; spawn failures are reported to the parent
+- If all eligible models are dead or restricted (when pi-model-info is installed), the subagent reports "no free model available" rather than silently trying a broken model
 
 ## License
 

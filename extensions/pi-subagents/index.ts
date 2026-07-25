@@ -27,7 +27,7 @@ import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { loadConfig } from "./config.ts";
-import { type Tier, type TierPools, discoverTierPools, pickModelForTier } from "./models.ts";
+import { type Tier, type TierPools, type Catalog, discoverTierPools, pickModelForTier, readCatalog, buildReverseMap, pickModelWithAvailability } from "./models.ts";
 
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = 4;
@@ -320,6 +320,8 @@ async function runSingleAgent(
 	tier: Tier,
 	outputFormat: "summary" | "detailed" | "full",
 	tierPools: TierPools | null,
+	catalog: Catalog | null,
+	reverseMap: Map<string, string> | null,
 	signal: AbortSignal | undefined,
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
@@ -345,7 +347,9 @@ async function runSingleAgent(
 	let resolvedModel = agent.model;
 	let resolvedTier: Tier | undefined;
 	if (!resolvedModel && tierPools) {
-		const pick = pickModelForTier(tierPools, tier);
+		const pick = catalog
+			? pickModelWithAvailability(tierPools, tier, catalog, reverseMap)
+			: pickModelForTier(tierPools, tier);
 		if (pick) {
 			resolvedModel = `${pick.model.provider}/${pick.model.id}`;
 			resolvedTier = pick.actualTier;
@@ -603,6 +607,10 @@ export default function (pi: ExtensionAPI) {
 				// Continue without tier pools; will fall back to agent.model or default
 			}
 
+			// Optional catalog for availability-aware model selection
+			const catalog: Catalog | null = readCatalog(config.catalogPath);
+			const reverseMap: Map<string, string> | null = catalog ? buildReverseMap(catalog) : null;
+
 			const hasChain = (params.chain?.length ?? 0) > 0;
 			const hasTasks = (params.tasks?.length ?? 0) > 0;
 			const hasSingle = Boolean(params.agent && params.task);
@@ -690,6 +698,8 @@ export default function (pi: ExtensionAPI) {
 							tier,
 							outputFormat,
 							tierPools,
+							catalog,
+							reverseMap,
 							signal,
 							chainUpdate,
 							makeDetails("chain"),
@@ -773,6 +783,8 @@ export default function (pi: ExtensionAPI) {
 							tier,
 							outputFormat,
 							tierPools,
+							catalog,
+							reverseMap,
 							signal,
 							(partial) => {
 								if (partial.details?.results[0]) {
@@ -826,6 +838,8 @@ export default function (pi: ExtensionAPI) {
 						tier,
 						outputFormat,
 						tierPools,
+						catalog,
+						reverseMap,
 						signal,
 						onUpdate,
 						makeDetails("single"),
