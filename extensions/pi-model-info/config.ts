@@ -39,6 +39,7 @@ export const LOCAL_PROVIDER_KINDS = new Set([
 	"llama.cpp",
 	"lm-studio",
 	"lmstudio",
+	"llama-swap",
 	"vllm",
 ]);
 
