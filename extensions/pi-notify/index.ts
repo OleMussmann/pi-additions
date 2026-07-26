@@ -98,4 +98,9 @@ export default function (pi: ExtensionAPI) {
 			notify("Pi", "Waiting for your input");
 		}
 	});
+
+	// Notify when guardrails intercept (path-access, permission-gate, etc.)
+	pi.events.on("guardrails:prompt:opened", async () => {
+		notify("Pi", "Guardrail: waiting for your input");
+	});
 }
