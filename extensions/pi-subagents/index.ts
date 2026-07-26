@@ -1210,4 +1210,15 @@ export default function (pi: ExtensionAPI) {
 			);
 		},
 	});
+
+	// /verify command for code review
+	pi.registerCommand("verify", {
+		description: "Review recent changes with the critic agent",
+		handler: async (_args, ctx) => {
+			pi.sendUserMessage(
+				`Use the subagent tool with agent "subagent-critic", tier "balanced", and outputFormat "detailed" to: Review all code changes made in this session. Focus on correctness, edge cases, security, and performance. Report issues with file:line references and severity levels.`,
+				{ deliverAs: "followUp" },
+			);
+		},
+	});
 }

@@ -132,7 +132,7 @@ green > unverified > yellow across tiers. Bash is allow/block-listed; sensitive 
 env vars are stripped. Use via the `subagent` tool or `/delegate`.
 
 > **No setup needed for the bundled agents.** The extension auto-discovers its own agents
-> (`subagent-scout`, `subagent-researcher`, `subagent-web-search`) from its bundled `agents/`
+> (`subagent-scout`, `subagent-researcher`, `subagent-web-search`, `subagent-critic`) from its bundled `agents/`
 folder — no symlinks required. To add your *own* agents, drop `.md` files in
 > `~/.pi/agent/agents/` (see `extensions/pi-subagents/README.md`).
 

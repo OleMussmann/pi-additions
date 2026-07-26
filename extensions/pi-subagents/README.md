@@ -37,7 +37,7 @@ pi install git:github.com/OleMussmann/pi-additions
 
 ### Agent definitions
 
-The extension ships with three agents (`subagent-scout`, `subagent-researcher`, `subagent-web-search`)
+The extension ships with four agents (`subagent-scout`, `subagent-researcher`, `subagent-web-search`, `subagent-critic`)
 and **automatically loads them from its own `agents/` folder** — no symlinks required.
 
 Behind the scenes, `discoverAgents()` resolves the extension directory via `import.meta.url`
@@ -134,6 +134,16 @@ Quick delegation with safe defaults (balanced tier, summary output):
 ```
 
 This wraps the subagent tool with sensible defaults.
+
+### Command: `/verify`
+
+Review recent code changes with the critic agent:
+
+```
+/verify
+```
+
+Spawns the `subagent-critic` agent to review all code changes made in the current session. Checks for correctness, edge cases, security issues, and performance problems. Findings include file:line references and severity levels.
 
 ## Optional: pi-model-info integration
 
@@ -290,6 +300,7 @@ Local inference backends (Ollama, llama.cpp, LM Studio, vLLM, llama-swap) compet
 | `subagent-scout` | Fast codebase exploration | read, grep, find, ls, bash |
 | `subagent-researcher` | Deep analysis | read, grep, find, ls, bash |
 | `subagent-web-search` | Search and summarize | read, bash |
+| `subagent-critic` | Code review for correctness, security, edge cases | read, grep, find, ls, bash |
 
 ## Limitations
 
