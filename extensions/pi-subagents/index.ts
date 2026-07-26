@@ -583,7 +583,7 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "Delegate exploration, research, or search tasks to read-only subagents",
 		promptGuidelines: [
 			"Use subagent when the task can be parallelized (e.g., search multiple areas of code simultaneously).",
-			"Use subagent with agent: 'subagent-web-search' when the user asks for information that can be answered by search and only a summary is needed.",
+			"Use subagent with agent: 'subagent-scout' for local codebase exploration (find files, trace patterns, read code). Use subagent with agent: 'subagent-web-search' only for external web research.",
 			"Use subagent for deep codebase exploration that would consume the parent context window.",
 			"Use subagent with outputFormat: 'summary' when only key findings are needed.",
 			"Use subagent with tier: 'fast' for quick lookups, 'balanced' for general research, 'powerful' for complex analysis.",

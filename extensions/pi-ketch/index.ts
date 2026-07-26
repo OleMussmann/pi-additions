@@ -268,8 +268,8 @@ export default function (pi: ExtensionAPI): void {
 		}
 
 		const note = hasSubagent
-			? "External research: use the `web` tool (pi-ketch) for raw web search, OSS code search, library docs, scrape, and crawl. For synthesized/summarized answers, delegate to the `subagent-web-search` subagent (via the `subagent` tool), which uses ketch under the hood. For full repo clones or YouTube transcripts, use the pi-web-access tools."
-			: "External research: use the `web` tool (pi-ketch) for raw web search, OSS code search, library docs, scrape, and crawl. Note: for synthesized/summarized answers you can delegate to a research subagent if one is installed. For full repo clones or YouTube transcripts, use the pi-web-access tools.";
+			? "External research: use the `web` tool (pi-ketch) for raw web search, OSS code search, library docs, scrape, and crawl. For synthesized web research, delegate to the `subagent-web-search` subagent (via the `subagent` tool), which uses ketch under the hood. For full repo clones or YouTube transcripts, use the pi-web-access tools."
+			: "External research: use the `web` tool (pi-ketch) for raw web search, OSS code search, library docs, scrape, and crawl. Note: for synthesized web research you can delegate to a research subagent if one is installed. For full repo clones or YouTube transcripts, use the pi-web-access tools.";
 
 		return {
 			message: {
@@ -294,7 +294,7 @@ export default function (pi: ExtensionAPI): void {
 			"Use mode 'docs' for version-aware library docs (Context7); set library to /org/repo to skip resolution.",
 			"Use mode 'scrape' for clean markdown from a specific URL or PDF.",
 			"Use mode 'crawl' sparingly to walk a docs site / sitemap (many requests); set depth/allow/deny to bound it.",
-			"For synthesized/summarized answers, delegate to the subagent-web-search subagent rather than doing it inline.",
+			"For synthesized web research, delegate to the subagent-web-search subagent rather than doing it inline.",
 			"Lower limit/maxChars when context is tight; raise them for broader coverage.",
 			"ketch cannot clone git repos or fetch YouTube transcripts — use pi-web-access for those.",
 		],
