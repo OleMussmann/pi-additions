@@ -30,6 +30,9 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Key } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { isSafeCommand } from "./utils.ts";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 
 // Builtins permitted in plan mode (read-only, no file modification)
 const PLAN_SAFE_BUILTINS = new Set(["read", "bash", "grep", "find", "ls"]);
@@ -90,12 +93,43 @@ function selectWidgetItems(
 	return { display: [...visibleTodo, ...visibleDone], hiddenDone, hiddenTodo };
 }
 
+/**
+ * Load the user's preferred keybinding for toggling plan/exec mode.
+ * Reads ~/.pi/agent/keybindings.json and looks for:
+ *   "extensions.pi-plan-mode-default.toggle": "ctrl+alt+m"
+ * Falls back to "ctrl+alt+p" if not configured.
+ */
+function loadToggleKeybinding(): string {
+	const keybindingsPath = join(homedir(), ".pi", "agent", "keybindings.json");
+	if (!existsSync(keybindingsPath)) {
+		return "ctrl+alt+p";
+	}
+	try {
+		const raw = readFileSync(keybindingsPath, "utf-8");
+		const config = JSON.parse(raw);
+		const customKey = config["extensions.pi-plan-mode-default.toggle"];
+		if (typeof customKey === "string" && customKey.trim()) {
+			return customKey.trim();
+		}
+		// Also support array format: ["ctrl+alt+m", "ctrl+alt+n"]
+		if (Array.isArray(customKey) && customKey.length > 0 && typeof customKey[0] === "string") {
+			return customKey[0].trim();
+		}
+	} catch {
+		// Ignore parse errors, fall back to default
+	}
+	return "ctrl+alt+p";
+}
+
 export default function planModeDefaultExtension(pi: ExtensionAPI): void {
 	let planModeEnabled = false;
 	let execModeEnabled = false;
 	let planItems: PlanItem[] = [];
 	let nextStep = 1;
 	let savedTools: string[] | undefined;
+
+	// Load user's preferred toggle keybinding (configurable via ~/.pi/agent/keybindings.json)
+	const toggleKey = loadToggleKeybinding();
 
 	function updateStatus(ctx: ExtensionContext): void {
 		if (execModeEnabled && planItems.length > 0) {
@@ -246,8 +280,8 @@ export default function planModeDefaultExtension(pi: ExtensionAPI): void {
 		},
 	});
 
-	// Keyboard shortcut
-	pi.registerShortcut(Key.ctrlAlt("p"), {
+	// Keyboard shortcut (configurable via ~/.pi/agent/keybindings.json)
+	pi.registerShortcut(toggleKey, {
 		description: "Toggle plan/exec mode",
 		handler: async (ctx) => {
 			if (planModeEnabled) {

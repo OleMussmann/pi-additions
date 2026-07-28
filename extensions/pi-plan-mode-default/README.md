@@ -134,7 +134,7 @@ This means:
 
 ### Keyboard shortcuts
 
-Override the default `Ctrl+Alt+P` in `~/.pi/agent/keybindings.json`:
+Override the default `Ctrl+Alt+P` in `~/.pi/agent/keybindings.json` (string or array):
 
 ```json
 {
