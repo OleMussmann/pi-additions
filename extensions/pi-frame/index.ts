@@ -125,6 +125,19 @@ function stopTpsTracking(): void {
 // ─── Extension Entry Point ───────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+	// Mode detection — at factory scope so it always uses the current pi
+	// reference, even if the render closure persists across /reload.
+	function getMode(): { label: string; color: string } {
+		let plan = false;
+		try {
+			const active = new Set(pi.getActiveTools());
+			plan = !active.has("edit") && !active.has("write");
+		} catch {
+			plan = false;
+		}
+		return plan ? { label: "plan", color: "warning" } : { label: "exec", color: "accent" };
+	}
+
 	function isValidStat(key: string): key is StatKey {
 		return (ALL_STATS as string[]).includes(key);
 	}
@@ -330,17 +343,6 @@ export default function (pi: ExtensionAPI) {
 
 
 		// ── Stat groups (capture ctx via closure) ──────────────────────
-
-		const getMode = (): { label: string; color: string } => {
-			let plan = false;
-			try {
-				const active = new Set(pi.getActiveTools());
-				plan = !active.has("edit") && !active.has("write");
-			} catch {
-				plan = false;
-			}
-			return plan ? { label: "plan", color: "warning" } : { label: "exec", color: "accent" };
-		};
 
 		const getCtxInfo = (): { pct: number; used: number; cw: number } | null => {
 			const usage = ctx.getContextUsage();
