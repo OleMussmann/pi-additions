@@ -108,12 +108,21 @@ function loadToggleKeybinding(): string {
 		const raw = readFileSync(keybindingsPath, "utf-8");
 		const config = JSON.parse(raw);
 		const customKey = config["extensions.pi-plan-mode-default.toggle"];
+		let candidate: string | undefined;
 		if (typeof customKey === "string" && customKey.trim()) {
-			return customKey.trim();
+			candidate = customKey.trim();
+		} else if (Array.isArray(customKey) && customKey.length > 0 && typeof customKey[0] === "string") {
+			candidate = customKey[0].trim();
 		}
-		// Also support array format: ["ctrl+alt+m", "ctrl+alt+n"]
-		if (Array.isArray(customKey) && customKey.length > 0 && typeof customKey[0] === "string") {
-			return customKey[0].trim();
+		if (candidate) {
+			// Reject keys that alias Enter in terminals:
+			// ctrl+m == CR (0x0D), ctrl+j == LF (0x0A)
+			const lower = candidate.toLowerCase();
+			if (lower === "ctrl+m" || lower === "ctrl+j") {
+				console.warn(`[plan-mode] Ignoring toggle key "${candidate}" (aliases Enter); falling back to ctrl+alt+p`);
+				return "ctrl+alt+p";
+			}
+			return candidate;
 		}
 	} catch {
 		// Ignore parse errors, fall back to default
