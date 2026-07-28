@@ -176,6 +176,7 @@ function getProviderModels(ctx: ExtensionContext, providerId: string): Model<Api
 
 /** Known variant suffixes that providers add but BenchLM doesn't track. */
 const VARIANT_SUFFIXES = [
+	/-free$/i,
 	/-fast$/i,
 	/-extended$/i,
 	/-preview$/i,

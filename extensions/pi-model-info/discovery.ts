@@ -76,8 +76,7 @@ export async function discoverModels(ctx: ExtensionContext): Promise<DiscoveredM
  *
  * Rules (from plan §4.2):
  * 1. Strip known provider path prefixes
- * 2. Strip :free / -free / similar suffixes
- * 3. Lowercase, collapse separators (-, _, .) to a single form
+ * 2. Lowercase, collapse separators (-, _, .) to a single form
  */
 export function normalizeModelKey(rawId: string): string {
 	let key = rawId;
@@ -89,10 +88,6 @@ export function normalizeModelKey(rawId: string): string {
 	if (lastSlash !== -1) {
 		key = key.slice(lastSlash + 1);
 	}
-
-	// Strip free-tier suffixes
-	key = key.replace(/:free$/i, "");
-	key = key.replace(/-free$/i, "");
 
 	// Strip inference-optimization suffixes (MTP = multi-token prediction,
 	// a speculative decoding speed boost; same model weights/accuracy)
