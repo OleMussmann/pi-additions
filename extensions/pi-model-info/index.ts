@@ -117,8 +117,8 @@ export default async function (pi: ExtensionAPI) {
 		let statusChanged = false;
 
 		if (status === 200 || status === 201) {
-			// Success — reinforce current status
-			if (prov.status === "unverified") {
+			// Success — reinforce current status, recover from prior errors
+			if (prov.status === "unverified" || prov.status === "red" || prov.status === "yellow") {
 				prov.status = "green";
 				prov.status_reason = "ok (real usage)";
 				statusChanged = true;
@@ -150,8 +150,13 @@ export default async function (pi: ExtensionAPI) {
 			prov.status_reason = `account-restricted (${status}, real usage)`;
 			prov.status_code = status;
 			statusChanged = true;
+		} else {
+			// Any other error (400, 500, 502, 503, etc.)
+			prov.status = "red";
+			prov.status_reason = `${status} (real usage)`;
+			prov.status_code = status;
+			statusChanged = true;
 		}
-		// 400 or other — don't change classification
 
 		scheduleWrite(catalog);
 
