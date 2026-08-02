@@ -93,6 +93,7 @@ const SAFE_PATTERNS = [
 	/^\s*bat\b/,
 	/^\s*eza\b/,
 	/^\s*rtk\b/,
+	/^\s*vault\b/,
 ];
 
 /**
