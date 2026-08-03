@@ -358,19 +358,22 @@ When creating a plan:
 			};
 		}
 
-		if (execModeEnabled && planItems.length > 0) {
+		if (execModeEnabled) {
 			const remaining = planItems.filter((t) => !t.completed);
 			const todoList = remaining.map((t) => `${t.step}. ${t.name ?? t.text.split("\n")[0]}`).join("\n");
-			return {
-				message: {
-					customType: "exec-mode-context",
-					content: `[EXEC MODE ACTIVE]
-Plan progress: ${planItems.filter((t) => t.completed).length}/${planItems.length}
+			const planSection =
+				planItems.length > 0
+					? `Plan progress: ${planItems.filter((t) => t.completed).length}/${planItems.length}
 
 Remaining steps:
 ${todoList}
 
-Execute each step in order. Use the plan_item tool to mark steps complete.`,
+Execute each step in order. Use the plan_item tool to mark steps complete.`
+					: "No plan items yet. Use the plan_item tool with action 'add' to build one, then mark steps complete as you go.";
+			return {
+				message: {
+					customType: "exec-mode-context",
+					content: `[EXEC MODE ACTIVE]\n${planSection}`,
 					display: false,
 				},
 			};
