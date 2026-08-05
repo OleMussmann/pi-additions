@@ -5,47 +5,65 @@ description: Research outside the codebase — web search, OSS code search, libr
 
 # ketch — External Research (pi-ketch)
 
-`pi-ketch` exposes the `ketch` CLI as a single Pi tool, `web`, with a `mode` enum.
-All modes are read-only. ketch is a stateless binary; this skill documents when to
-use each mode and which flags matter.
+`web` wraps the `ketch` CLI as one tool with a `mode` enum. Read-only, stateless —
+one call, one result. Cite the source URL for every claim; never invent one.
 
-## When to use `web` (vs other tools)
+## Mode routing
 
-| Need | `web` mode | Notes |
-|------|-----------|-------|
-| General web research / facts | `search` | add `scrape: true` for full content; `multi: true` to federate across backends (rank-fused) |
-| Find real OSS usage across repos | `code` | add `lang` (e.g. `go`); `regex: true` for regex queries; `backend: github` for GitHub code search |
-| Version-aware library docs | `docs` | set `library: /org/repo` to skip resolution; `tokens` for budget |
-| Clean markdown from a URL / PDF | `scrape` | single or multiple URLs; auto-detects PDFs |
-| Walk a docs site / sitemap | `crawl` | set `depth` (default 3), `allow`/`deny` filters; **use sparingly** (many requests) |
+| Need | mode | Key params / notes |
+|---|---|---|
+| Web search, opinions, current info | `search` | `scrape:true` → full content per result (costs like a scrape — drop `limit` to 2-3); `multi:true` → federate all backends, rank-fused; `backend` to pin one |
+| Real-world OSS usage of an API | `code` | `lang`; `regex:true` (grepapp/sourcegraph only — github rejects it); `backend: github` for GitHub Code Search |
+| A library's own docs, version-aware | `docs` | Without `library`, ketch resolves the name for you — sanity-check the result actually matches (a typo can still get a confident wrong match). Set `library: /org/repo` to skip resolution when you know the ID |
+| Content of a known URL / PDF | `scrape` | Never re-search a URL you already have. Bare domains auto-probe `/llms.txt` and may return that instead of the page — if the result looks like a site manifest, that's why |
+| Many pages under one site | `crawl` | `depth` (default 3), `allow`/`deny` filters, `concurrency`. Use sparingly — many requests |
 
-## Token control (protect context)
+## Token budget
 
-Always tune per call:
-- `limit` (default 5) — number of results.
-- `maxChars` (default 4000) — truncate the returned summary.
+`limit` (default 5), `maxChars` (default 4000, truncates the whole rendered
+summary) — lower both when context is tight, raise for broader coverage.
 
-Lower both when context is tight; raise for broader coverage.
+## Errors
 
-## Control flow (exit codes)
+Failures name their class in the returned text: bad input, not found,
+upstream/network failure, missing precondition, cancelled.
 
-ketch uses documented exit codes — surface these to the user when a call fails:
-- `2` bad input · `3` not found · `4` upstream/network failure
-- `5` missing precondition (e.g. no API key) → run `ketch config` and set the key
-- `6` cancelled (SIGINT/SIGTERM)
+- Bad input / not found → fix the call; retrying unchanged can't succeed.
+- Upstream/network → retry once, optionally with a different `backend`.
+- Missing precondition (no API key) → tell the user; don't run `ketch config` yourself.
+- Cancelled → rerun with a smaller scope.
 
-`ketch doctor` reports backend health; `ketch config` shows active backends.
+## Gotchas
 
-## Synthesized answers
+- **Batch scrape partial failure.** A scrape of multiple URLs can return `isError=false` with individual `results[].error` set on some entries. Check each result — a success summary doesn't mean every URL succeeded.
+- **`regexp` backend restriction.** `regex:true` works on grepapp and sourcegraph only; github rejects it.
+- **Docs resolve needs vetting.** `docs` never returns empty — a typo gets confident fuzzy matches. Check the name, not just the trust score.
 
-`pi-ketch` is **raw-only**. Delegate to `subagent-web-search` for summaries.
+## Synthesis
+
+`web` is raw-only. For a summarized, cited answer, delegate to
+`subagent-web-search` (via the `subagent` tool) if available.
+
+## Subagent tiering
+
+| Scenario | Tool | Why |
+|---|---|---|
+| Known URL | `web` mode scrape directly | No exploration needed; subagent adds latency + paraphrase |
+| Unknown URL, known problem | `web` search in main loop | SERP is ~1-3k tokens; main agent knows repo constraints |
+| Unknown landscape / N libraries / whole-docs crawl | `subagent-web-search` as **librarian** | Subagent scrapes to disk, returns manifest (paths, URLs, excerpts) — not a summary |
 
 ## Edge cases: use pi-web-access instead
 
-`ketch` cannot:
-- **Clone a repository** for deep local exploration (`ketch crawl` only walks
-  rendered website/sitemap HTML — not a git tree or file contents).
-- **Fetch YouTube video transcripts** (`ketch` has no YouTube support).
+`web` can't download a GitHub repo to `/tmp` for local code access, or fetch
+YouTube transcripts — use `fetch_content` (pi-web-access) for both. For OSS
+*discovery* ("where is X used?"), prefer `web` mode `code` over a full download.
 
-For public OSS *discovery* ("where is X used?"), prefer `web` mode `code` — it is
-often better than cloning.
+If `web`/ketch isn't installed at all, fall back to `web_search` (pi-web-access).
+
+## Diagnostics
+
+Pi can shell out for read-only diagnostics:
+- `ketch doctor --json` — backend health
+- `ketch config` — active backends and settings
+
+Don't mutate config yourself — tell the user what to run.

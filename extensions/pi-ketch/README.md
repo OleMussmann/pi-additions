@@ -85,6 +85,10 @@ One tool with a `mode` enum. All modes are read-only.
 | `concurrency` | `number` | `8` | `crawl`: worker pool size |
 | `allow` | `string` | — | `crawl`: path substring allow filter |
 | `deny` | `string` | — | `crawl`: regex deny pattern |
+| `select` | `string` | — | `scrape`: CSS selector to extract specific elements (skips readability) |
+| `trim` | `boolean` | `false` | `scrape`: strip markdown formatting, keep text only |
+| `sitemap` | `boolean` | `false` | `crawl`: treat the seed URL as a sitemap |
+| `noLlmstxt` | `boolean` | `false` | `scrape`: skip `/llms.txt` probing on bare domains |
 
 ### Token control
 
@@ -102,6 +106,22 @@ ketch uses documented exit codes — the tool surfaces these as helpful messages
 | `4` | Upstream / network failure |
 | `5` | Missing precondition (e.g. no API key) — message tells user to run `ketch config` |
 | `6` | Cancelled (SIGINT/SIGTERM) |
+
+## Recommended AGENTS.md Configuration
+
+For best results, add the following to `~/.pi/agent/AGENTS.md` under `## Web Search`:
+
+```markdown
+## Web Search
+
+Prefer `web` (ketch) over `web_search`/`fetch_content` (both from `pi-web-access`) for research: search, code search, docs, scrape, crawl. Don't pick the latter two just because the names look familiar — `/skill:ketch` should surface automatically but don't rely on that alone.
+
+For synthesized or summarized web searches, delegate to the `subagent-web-search` subagent if available, via the `subagent` tool.
+
+Use `fetch_content` for downloading a GitHub repo to `/tmp`, or YouTube transcripts (`web` can't do either). Fall back to `web_search` only if `web` isn't installed.
+```
+
+This prevents the common agent mistake of calling `web_search` instead of `web` (because the name looks familiar).
 
 ## Bundled Skill
 

@@ -291,6 +291,44 @@ function getGuardrailPath(): string | null {
 	return null;
 }
 
+/**
+ * Resolve agent-declared extension names to their index.ts paths.
+ * Searches ~/.pi/agent/extensions/ (via getAgentDir) for matching directories.
+ * Always includes the guardrail extension.
+ */
+function resolveExtensionPaths(names: string[] | undefined, guardrailPath: string | null): string[] {
+	const paths: string[] = [];
+	const seen = new Set<string>();
+
+	// Agent-declared extensions
+	if (names && names.length > 0) {
+		const extensionsDir = path.join(getAgentDir(), "extensions");
+		if (fs.existsSync(extensionsDir)) {
+			for (const name of names) {
+				const extDir = path.join(extensionsDir, name);
+				if (!fs.existsSync(extDir) || !fs.statSync(extDir).isDirectory()) continue;
+
+				// Try index.ts first, then index.js
+				for (const ext of ["ts", "js"]) {
+					const indexPath = path.join(extDir, `index.${ext}`);
+					if (fs.existsSync(indexPath) && !seen.has(indexPath)) {
+						paths.push(indexPath);
+						seen.add(indexPath);
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	// Guardrail (always included, deduplicated)
+	if (guardrailPath && !seen.has(guardrailPath)) {
+		paths.push(guardrailPath);
+	}
+
+	return paths;
+}
+
 function buildSubagentSystemPrompt(
 	agentPrompt: string,
 	outputFormat: "summary" | "detailed" | "full",
@@ -377,10 +415,11 @@ async function runSingleAgent(
 	const agentTools = agent.tools && agent.tools.length > 0 ? agent.tools : SUBAGENT_TOOLS;
 	args.push("--tools", agentTools.join(","));
 
-	// Inject guardrail extension
+	// Inject extensions: agent-declared extensions + guardrail
 	const guardrailPath = getGuardrailPath();
-	if (guardrailPath) {
-		args.push("--extension", guardrailPath);
+	const extPaths = resolveExtensionPaths(agent.extensions, guardrailPath);
+	for (const ext of extPaths) {
+		args.push("--extension", ext);
 	}
 
 	let tmpPromptDir: string | null = null;

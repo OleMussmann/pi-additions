@@ -84,6 +84,10 @@ const WebParams = Type.Object({
 	concurrency: Type.Optional(Type.Number({ description: "crawl: worker pool size (default 8)." })),
 	allow: Type.Optional(Type.String({ description: "crawl: path substring allow filter." })),
 	deny: Type.Optional(Type.String({ description: "crawl: regex deny pattern." })),
+	select: Type.Optional(Type.String({ description: "scrape: CSS selector to extract specific elements (skips readability)." })),
+	trim: Type.Optional(Type.Boolean({ description: "scrape: strip markdown formatting, keep text only.", default: false })),
+	sitemap: Type.Optional(Type.Boolean({ description: "crawl: treat the seed URL as a sitemap.", default: false })),
+	noLlmstxt: Type.Optional(Type.Boolean({ description: "scrape: skip llms.txt probing on bare domains.", default: false })),
 });
 
 function pushFlag(args: string[], flag: string, value: string | number | boolean | undefined): void {
@@ -116,6 +120,10 @@ function buildArgs(params: {
 	concurrency?: number;
 	allow?: string;
 	deny?: string;
+	select?: string;
+	trim?: boolean;
+	sitemap?: boolean;
+	noLlmstxt?: boolean;
 }): string[] | { error: string } {
 	const verb = params.mode;
 
@@ -151,6 +159,9 @@ function buildArgs(params: {
 			if (!params.url) return { error: "mode 'scrape' requires 'url'." };
 			args.push(params.url);
 			pushFlag(args, "--max-chars", params.maxChars ?? DEFAULT_MAX_CHARS);
+			pushFlag(args, "--select", params.select);
+			pushFlag(args, "--trim", params.trim);
+			pushFlag(args, "--no-llms-txt", params.noLlmstxt);
 			break;
 		case "crawl":
 			if (!params.url) return { error: "mode 'crawl' requires 'url'." };
@@ -159,6 +170,7 @@ function buildArgs(params: {
 			pushFlag(args, "--concurrency", params.concurrency);
 			pushFlag(args, "--allow", params.allow);
 			pushFlag(args, "--deny", params.deny);
+			pushFlag(args, "--sitemap", params.sitemap);
 			break;
 		case "doctor":
 		case "config":
@@ -292,8 +304,8 @@ export default function (pi: ExtensionAPI): void {
 			"Use mode 'search' for general web research; add scrape:true for full content, or multi:true to federate across backends.",
 			"Use mode 'code' to find real OSS usage across repos (add lang for filtering, regex:true for regex).",
 			"Use mode 'docs' for version-aware library docs (Context7); set library to /org/repo to skip resolution.",
-			"Use mode 'scrape' for clean markdown from a specific URL or PDF.",
-			"Use mode 'crawl' sparingly to walk a docs site / sitemap (many requests); set depth/allow/deny to bound it.",
+			"Use mode 'scrape' for clean markdown from a specific URL or PDF; add select to target specific elements, trim for text-only, noLlmstxt to skip llms.txt probing.",
+			"Use mode 'crawl' sparingly to walk a docs site / sitemap (many requests); set depth/allow/deny to bound it, sitemap:true for sitemap.xml URLs.",
 			"For synthesized web research, delegate to the subagent-web-search subagent rather than doing it inline.",
 			"Lower limit/maxChars when context is tight; raise them for broader coverage.",
 			"ketch cannot clone git repos or fetch YouTube transcripts — use pi-web-access for those.",
